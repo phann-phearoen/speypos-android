@@ -64,7 +64,7 @@ try {
     log('Service installed successfully.');
     svc.start();
     log('Service started.');
-    log('Deployment complete! SpeyPOS should be accessible at http://localhost:3000');
+    log('Deployment complete!');
   });
 
   svc.on('alreadyinstalled', () => {
@@ -74,7 +74,7 @@ try {
   
   svc.on('restart', () => {
     log('Service restarted.');
-    log('Deployment complete! SpeyPOS should be accessible at http://localhost:3000');
+    log('Deployment complete!');
   });
 
   svc.on('error', (err) => {

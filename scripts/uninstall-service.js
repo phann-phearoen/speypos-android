@@ -1,12 +1,9 @@
-import { Service } from 'node-windows';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs-extra';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { Service } = require('node-windows');
+const path = require('path');
+const fs = require('fs-extra');
 
 // --- Configuration ---
+// __dirname is the directory of the current script (i.e., /scripts)
 const projectRoot = path.resolve(__dirname, '..');
 const backendDir = path.join(projectRoot, 'speypos-local');
 const serviceScriptPath = path.join(backendDir, 'src', 'index.js');

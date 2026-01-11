@@ -1,13 +1,10 @@
-import { Service } from 'node-windows';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
-import fs from 'fs-extra';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { Service } = require('node-windows');
+const path = require('path');
+const { execSync } = require('child_process');
+const fs = require('fs-extra');
 
 // --- Configuration ---
+// __dirname is the directory of the current script (i.e., /scripts)
 const projectRoot = path.resolve(__dirname, '..');
 const backendDir = path.join(projectRoot, 'speypos-local');
 const frontendDir = path.join(projectRoot, 'speypos-pwa');
@@ -67,7 +64,7 @@ try {
     log('Service installed successfully.');
     svc.start();
     log('Service started.');
-    log('Deployment complete! SpeyPOS should be accessible at http://localhost:8080');
+    log('Deployment complete! SpeyPOS should be accessible at http://localhost:3000');
   });
 
   svc.on('alreadyinstalled', () => {
@@ -77,7 +74,7 @@ try {
   
   svc.on('restart', () => {
     log('Service restarted.');
-    log('Deployment complete! SpeyPOS should be accessible at http://localhost:8080');
+    log('Deployment complete! SpeyPOS should be accessible at http://localhost:3000');
   });
 
   svc.on('error', (err) => {

@@ -1,4 +1,4 @@
-import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
+const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
 
 const printer = new ThermalPrinter({
   type: PrinterTypes.EPSON,

@@ -18,23 +18,6 @@ function log(message) {
   console.log(`[DEPLOY] ${message}`);
 }
 
-// Global error handlers to log crashes
-process.on('uncaughtException', err => {
-  require('fs').appendFileSync(
-    projectRoot + '\\speypos-crash.log',
-    err.stack + '\n'
-  );
-  process.exit(1);
-});
-
-process.on('unhandledRejection', err => {
-  require('fs').appendFileSync(
-    projectRoot + '\\speypos-crash.log',
-    String(err) + '\n'
-  );
-  process.exit(1);
-});
-
 function execute(command, cwd) {
   log(`Executing: ${command} in ${cwd}`);
   try {
@@ -66,7 +49,12 @@ async function deploy() {
     // 4. Install backend dependencies
     execute('npm install', backendDir);
 
-    // 5. Configure and install the Windows Service
+    // 5. Install Puppeteer browser
+    log('Installing Puppeteer browser...');
+    execute('npx puppeteer browsers install chrome --path data/puppeteer', backendDir);
+    log('Puppeteer browser installed successfully.');
+
+    // 6. Configure and install the Windows Service
     log('Configuring Windows service...');
     const svc = new Service({
       name: 'SpeyPOS Local Server',

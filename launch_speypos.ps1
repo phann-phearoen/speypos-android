@@ -15,6 +15,14 @@ $customerDataDir = "C:\POS_Customer"
 if (!(Test-Path $staffDataDir)) { New-Item -ItemType Directory -Path $staffDataDir -Force }
 if (!(Test-Path $customerDataDir)) { New-Item -ItemType Directory -Path $customerDataDir -Force }
 
+# Define the Cache paths inside your custom data dirs
+$customerCache = "$customerDataDir\Default\Cache"
+$customerCodeCache = "$customerDataDir\Default\Code Cache"
+
+# Wipe the cache folders if they exist
+if (Test-Path $customerCache) { Remove-Item -Recurse -Force $customerCache }
+if (Test-Path $customerCodeCache) { Remove-Item -Recurse -Force $customerCodeCache }
+
 # Coordinates
 $screen1X = 0
 $screen2X = 1366

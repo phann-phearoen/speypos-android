@@ -117,9 +117,17 @@ migration_plan:
 
     - id: 8
       area: Networking and local API behavior
+      status: completed
       tasks:
         - Confirm local server binding, ports, and CORS behavior for Android-hosted frontend/backend.
         - Add resilient handling for network transitions such as WiFi drop/reconnect and IP changes.
+      completed_notes:
+        - AbortController + clearTimeout added to all three outbound fetch callers (cloudHandshake, cloudIngest, telegram). Prevents indefinite hangs when WiFi drops mid-request and would otherwise deadlock the sync queue processor.
+        - Fetch timeouts are operator-tunable via CLOUD_FETCH_TIMEOUT_MS (default 15 s) and TELEGRAM_FETCH_TIMEOUT_MS (default 8 s), both validated in env.js and documented in .env.example.
+        - AbortError caught explicitly in all three callers and re-thrown with a descriptive FETCH_TIMEOUT code.
+        - health.js liveness probe changed from db.pragma('integrity_check') to db.prepare('SELECT 1').get() — avoids a full table scan on every watchdog poll.
+        - Server binding (0.0.0.0), CORS, and IP-change handling are correct as-is; WiFi reconnect recovery is handled at process level by the watchdog.
+        - Automated verification at speypos-local/scripts/tests/refactor8.integration.js.
 
     - id: 9
       area: Observability and recovery

@@ -95,14 +95,28 @@ function buildOrderEvent(order, currencyCode) {
 }
 
 async function postJson(url, body, apiKey) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Api-Key': apiKey,
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), env.cloudFetchTimeoutMs);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw Object.assign(new Error(`Cloud ingest request timed out after ${env.cloudFetchTimeoutMs} ms`), { code: 'FETCH_TIMEOUT' });
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   let json;
   try {

@@ -8,8 +8,8 @@ import { isSystemInitialized } from '../services/setup.service.js';
 export function healthCheck(req, res) {
   try {
     const db = getDb();
-    // A simple check to see if we can query the database
-    db.pragma('integrity_check');
+    // Cheap liveness probe — avoids the full table scan of integrity_check.
+    db.prepare('SELECT 1').get();
 
     res.status(200).json({
       status: 'ok',

@@ -20,15 +20,29 @@ export async function performHandshake({ apiKey, baseUrl }) {
 
   logger.info('Cloud handshake starting.', { url: normalizedBaseUrl });
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), env.cloudFetchTimeoutMs);
+
   let json = {};
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Api-Key': apiKey,
-    },
-    body: JSON.stringify({}),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apiKey,
+      },
+      body: JSON.stringify({}),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw Object.assign(new Error(`Cloud handshake timed out after ${env.cloudFetchTimeoutMs} ms`), { code: 'FETCH_TIMEOUT' });
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   try {
     json = await response.json();

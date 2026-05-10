@@ -58,6 +58,8 @@ function parseIntegerEnv(name, fallback, { min, max }) {
 validateEnv();
 
 const syncMiniBatchSize = parseIntegerEnv('SYNC_MINI_BATCH_SIZE', 20, { min: 1, max: 200 });
+const cloudFetchTimeoutMs = parseIntegerEnv('CLOUD_FETCH_TIMEOUT_MS', 15000, { min: 1000, max: 120000 });
+const telegramFetchTimeoutMs = parseIntegerEnv('TELEGRAM_FETCH_TIMEOUT_MS', 8000, { min: 1000, max: 60000 });
 const runtimeProfile = process.env.RUNTIME_PROFILE || 'default';
 
 if (!VALID_RUNTIME_PROFILES.includes(runtimeProfile)) {
@@ -75,6 +77,8 @@ export const env = {
   forceConsolePrinter,
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
   syncMiniBatchSize,
+  cloudFetchTimeoutMs,
+  telegramFetchTimeoutMs,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8000',
   cloudBaseUrl: (process.env.CLOUD_BASE_URL || 'https://speypos-cloud.ryong.net').replace(/\/+$/, ''),
   isProduction: process.env.NODE_ENV === 'production',

@@ -1,0 +1,1 @@
+@powershell -NoProfile -ExecutionPolicy ByPass -File "C:\Users\POS\speypos-system\launch_speypos.ps1"

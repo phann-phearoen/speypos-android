@@ -1,0 +1,174 @@
+version: 1
+updated_at: 2026-01-28
+title: Topping Feature Integration Guide
+purpose: >
+  Guide the frontend AI builder to integrate topping groups/options into the menu
+  configuration UI and order flow. Toppings are distinct from customization options
+  because they support quantity and unit pricing.
+
+entities:
+  ToppingGroup:
+    fields:
+      id: string
+      name: string
+      required: boolean
+      sort_order: number
+      created_at: number
+      updated_at: number|null
+    notes:
+      - Represents a group of toppings (e.g., "Add-ons", "Extra Syrup").
+  ToppingOption:
+    fields:
+      id: string
+      topping_group_id: string
+      label: string
+      unit_label: string  # default "qty"; e.g., "ml", "shot"
+      unit_price: number  # price per unit in smallest currency unit
+      min_quantity: number
+      max_quantity: number|null
+      step_quantity: number
+      sort_order: number
+      created_at: number
+      updated_at: number|null
+    notes:
+      - Quantity is a real number (e.g., 0.5).
+      - If unit_label is "qty", display as x{quantity}.
+  MenuItemToppingGroup:
+    fields:
+      id: string
+      menu_item_id: string
+      topping_group_id: string
+  MenuCategoryToppingGroup:
+    fields:
+      id: string
+      menu_category_id: string
+      topping_group_id: string
+  OrderItemTopping:
+    fields:
+      id: string
+      order_item_id: string
+      topping_option_id: string
+      name: string
+      unit_label: string
+      unit_price: number
+      quantity: number
+      total_price: number
+    notes:
+      - This is a snapshot stored on the order item.
+      - total_price is typically unit_price * quantity.
+
+api:
+  topping_groups:
+    list:
+      method: GET
+      path: /api/topping-group
+    get:
+      method: GET
+      path: /api/topping-group/{id}
+    create:
+      method: POST
+      path: /api/topping-group
+      admin: true
+      body:
+        name: string
+        required: boolean
+        sort_order: number
+    update:
+      method: PATCH
+      path: /api/topping-group/{id}
+      admin: true
+    delete:
+      method: DELETE
+      path: /api/topping-group/{id}
+      admin: true
+
+  topping_options:
+    list:
+      method: GET
+      path: /api/topping-option
+      query:
+        topping_group_id: string
+    get:
+      method: GET
+      path: /api/topping-option/{id}
+    create:
+      method: POST
+      path: /api/topping-option
+      admin: true
+      body:
+        topping_group_id: string
+        label: string
+        unit_label: string
+        unit_price: number
+        min_quantity: number
+        max_quantity: number|null
+        step_quantity: number
+        sort_order: number
+    update:
+      method: PATCH
+      path: /api/topping-option/{id}
+      admin: true
+    delete:
+      method: DELETE
+      path: /api/topping-option/{id}
+      admin: true
+
+  menu_item_topping_groups:
+    list:
+      method: GET
+      path: /api/menu-item-topping-group
+      query:
+        menu_item_id: string
+        topping_group_id: string
+    create:
+      method: POST
+      path: /api/menu-item-topping-group
+      admin: true
+      body:
+        menu_item_id: string
+        topping_group_id: string
+    delete:
+      method: DELETE
+      path: /api/menu-item-topping-group/{id}
+      admin: true
+
+  menu_category_topping_groups:
+    list:
+      method: GET
+      path: /api/menu-category-topping-groups
+      query:
+        menu_category_id: string
+        topping_group_id: string
+    create:
+      method: POST
+      path: /api/menu-category-topping-groups
+      admin: true
+      body:
+        menu_category_id: string
+        topping_group_id: string
+    delete:
+      method: DELETE
+      path: /api/menu-category-topping-groups/{id}
+      admin: true
+
+order_payload:
+  request_item_shape:
+    menu_item_id: string
+    quantity: number
+    unit_price: number
+    customizations:
+      - name: string
+        option_type: string|null
+        value: string|null
+        price: number
+    toppings:
+      - topping_option_id: string
+        name: string
+        unit_label: string  # optional, default "qty"
+        unit_price: number
+        quantity: number
+        total_price: number  # optional; backend derives if omitted
+
+migration_notes:
+  - Toppings are stored separately from CustomizationOption.
+  - Existing customization flows remain unchanged.

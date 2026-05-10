@@ -1,0 +1,289 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Slate Blue - Professional SaaS palette */
+    --background: 210 20% 98%;
+    --foreground: 220 14% 10%;
+
+    --card: 210 20% 100%;
+    --card-foreground: 220 14% 10%;
+
+    --popover: 210 20% 100%;
+    --popover-foreground: 220 14% 10%;
+
+    /* Deep slate primary */
+    --primary: 220 14% 22%;
+    --primary-foreground: 210 20% 98%;
+
+    /* Light slate gray secondary */
+    --secondary: 214 20% 94%;
+    --secondary-foreground: 220 14% 20%;
+
+    /* Muted tones */
+    --muted: 214 20% 92%;
+    --muted-foreground: 220 10% 46%;
+
+    /* Bright blue accent */
+    --accent: 210 100% 52%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Error/destructive states */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success state */
+    --success: 142 70% 40%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning state */
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 14% 10%;
+
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 210 100% 52%;
+
+    --radius: 0.75rem;
+
+    /* POS specific tokens */
+    --pos-header: 220 14% 18%;
+    --pos-header-foreground: 210 20% 98%;
+    --pos-sidebar: 214 20% 96%;
+    --pos-panel: 210 20% 100%;
+    --pos-item-hover: 214 25% 93%;
+    --pos-item-active: 210 100% 52%;
+
+    /* Touch target minimum */
+    --touch-target: 48px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 14% 10% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(220 14% 10% / 0.08),
+      0 2px 4px -2px hsl(220 14% 10% / 0.05);
+    --shadow-lg: 0 10px 15px -3px hsl(220 14% 10% / 0.08),
+      0 4px 6px -4px hsl(220 14% 10% / 0.05);
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 220 18% 12%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 210 100% 55%;
+    --primary-foreground: 220 20% 8%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 220 15% 16%;
+    --muted-foreground: 210 15% 55%;
+
+    --accent: 210 100% 55%;
+    --accent-foreground: 220 20% 8%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 220 20% 8%;
+
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 210 100% 55%;
+
+    --pos-header: 220 20% 6%;
+    --pos-header-foreground: 210 20% 95%;
+    --pos-sidebar: 220 18% 10%;
+    --pos-panel: 220 18% 12%;
+    --pos-item-hover: 220 18% 16%;
+    --pos-item-active: 210 100% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: "DM Sans", system-ui, sans-serif;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+}
+
+@layer components {
+  /* POS Button base */
+  .pos-btn {
+    @apply flex items-center justify-center rounded-lg font-medium transition-all duration-150;
+    @apply active:scale-[0.98] active:brightness-95;
+    min-height: var(--touch-target);
+    min-width: var(--touch-target);
+  }
+
+  /* POS Button small variant */
+  .pos-btn--small {
+    min-width: 25px;
+    min-height: 25px;
+    @apply rounded-lg font-medium flex items-center justify-center transition-all duration-150;
+    @apply active:scale-[0.98] active:brightness-95;
+  }
+
+  /* Menu item card */
+  .menu-item-card {
+    @apply relative flex flex-col items-center justify-center p-3 rounded-xl;
+    @apply bg-card border border-border/50 shadow-sm;
+    @apply transition-all duration-150;
+    @apply active:scale-[0.97] active:shadow-md;
+    min-height: 100px;
+  }
+
+  .menu-item-card:hover {
+    @apply bg-[hsl(var(--pos-item-hover))];
+  }
+
+  /* Category tab (vertical - legacy) */
+  .category-tab {
+    @apply flex items-center gap-2 px-4 py-3 rounded-lg font-medium;
+    @apply transition-all duration-150;
+    @apply text-muted-foreground;
+    min-height: var(--touch-target);
+  }
+
+  .category-tab.active {
+    @apply bg-primary text-primary-foreground shadow-md;
+  }
+
+  .category-tab:not(.active):hover {
+    @apply bg-muted/80;
+  }
+
+  /* Category tab (horizontal) */
+  .category-tab-horizontal {
+    @apply flex items-center gap-1.5 px-4 py-2 rounded-full font-medium;
+    @apply transition-all duration-150 whitespace-nowrap flex-shrink-0;
+    @apply text-muted-foreground bg-transparent;
+    min-height: var(--touch-target);
+  }
+
+  .category-tab-horizontal.active {
+    @apply bg-primary text-primary-foreground shadow-md;
+  }
+
+  .category-tab-horizontal:not(.active):hover {
+    @apply bg-muted/80;
+  }
+
+  /* Order item row (legacy) */
+  .order-item-row {
+    @apply flex items-start gap-3 p-3 rounded-lg;
+    @apply bg-muted/30 border border-border/30;
+    @apply transition-all duration-150;
+  }
+
+  /* Order item row (wide panel - legacy) */
+  .order-item-row-wide {
+    @apply flex flex-col p-4 rounded-xl;
+    @apply bg-muted/30 border border-border/30;
+    @apply transition-all duration-150;
+  }
+
+  /* Grouped order item card */
+  .grouped-item-card {
+    @apply p-2 rounded-xl;
+    @apply bg-muted/30 border border-border/30;
+    @apply transition-all duration-150;
+  }
+
+  /* Grouped order item row (compact horizontal) */
+  .grouped-item-row {
+    @apply flex items-center gap-2 py-1.5 px-1;
+    @apply transition-all duration-100;
+    min-height: 36px;
+  }
+
+  .grouped-item-row:hover {
+    @apply bg-muted/50 rounded-lg;
+  }
+
+  /* Numpad button */
+  .numpad-btn {
+    @apply flex items-center justify-center text-2xl font-semibold rounded-xl;
+    @apply bg-secondary text-secondary-foreground;
+    @apply transition-all duration-100;
+    @apply active:scale-[0.96] active:bg-secondary/80;
+    min-height: 64px;
+  }
+
+  /* Status indicator */
+  .status-dot {
+    @apply w-3 h-3 rounded-full animate-pulse;
+  }
+
+  .status-dot.open {
+    @apply bg-success;
+  }
+
+  .status-dot.closed {
+    @apply bg-destructive;
+  }
+
+  /* Scrollbar styling for touch */
+  .pos-scroll {
+    @apply overflow-y-auto;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+
+  .pos-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .pos-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pos-scroll::-webkit-scrollbar-thumb {
+    @apply rounded-full;
+    background: hsl(var(--muted-foreground) / 0.3);
+  }
+
+  /* Horizontal scroll for category bar */
+  .pos-scroll-horizontal {
+    @apply overflow-x-auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .pos-scroll-horizontal::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .touch-target {
+    min-height: var(--touch-target);
+    min-width: var(--touch-target);
+  }
+}

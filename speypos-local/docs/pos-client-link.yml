@@ -1,0 +1,101 @@
+title: SpeyPOS Cloud POS Client Link
+version: 1
+purpose: Guidance for POS devices/agents to push append-only events into SpeyPOS Cloud per store.
+base_urls:
+  production: https://speypos-cloud.ryong.net
+  local_dev: http://localhost:3000
+authentication:
+  header: X-Api-Key
+  scope: API key must belong to the store in the request path; no cross-store access.
+  retrieval:
+    create: POST /stores/:store_id/clients (owner-only) returns plaintext api_key once
+    list: GET /stores/:store_id/clients and GET /stores/:store_id/clients/:id (digests only)
+    rotate: POST /stores/:store_id/clients/:id/rotate returns new plaintext api_key once; old key stops working immediately
+  storage: Persist api_key securely on the POS; the cloud never stores the plaintext. Rotate if leaked or on device replacement.
+  header_usage: Send X-Api-Key: <api_key> on every ingest request. Do not prefix with Bearer.
+request_contract:
+  content_type: application/json
+  envelope: All payloads are nested (event_batch: {...}) or (event: {...}); flat bodies are rejected.
+  response_wrapper: { data: ..., meta: { request_id, pagination?, required_role?, allowed_actions? } }.
+  error_shape: { errors: [{ code, message, details? }], meta: { request_id } } with relevant HTTP status.
+ingestion_flow:
+  steps:
+    - Create an event batch for the store: POST /stores/:store_id/event_batches with event_batch payload.
+    - Append events into that batch: POST /stores/:store_id/event_batches/:event_batch_id/events for each record.
+    - (Optional) Read back batches/events for reconciliation: GET /stores/:store_id/event_batches and GET /stores/:store_id/event_batches/:id.
+  ordering: Send events in chronological order (occurred_at) per batch to keep analytics stable.
+  immutability: Event batches and events are append-only. Corrections require sending new events; updates/deletes are rejected.
+  anomaly_processing: Batch creation triggers downstream anomaly evaluation asynchronously.
+event_batch_contract:
+  required_fields:
+    business_date: ISO date string (store local business day boundary, e.g., 2024-12-31)
+    source: one of [shift_close, day_close, manual]
+  sample_request: |
+    POST /stores/123/event_batches
+    Headers: { X-Api-Key: <api_key>, Content-Type: application/json }
+    Body:
+      { "event_batch": { "business_date": "2024-12-31", "source": "shift_close" } }
+  sample_response_keys: data.event_batch.id, business_date, source
+
+allowed_event_types:
+  - ORDER_CREATED
+  - SHIFT_CLOSED
+  - INVENTORY_ADDED
+  - INVENTORY_REMOVED
+  - INVENTORY_ADJUSTED
+
+event_contract:
+  required_fields:
+    event_type: one of allowed_event_types
+    occurred_at: ISO8601 UTC timestamp (e.g., 2024-12-31T23:59:59Z)
+    payload: type-specific JSON object (see payload_shapes)
+  payload_shapes:
+    ORDER_CREATED:
+      required: [total]
+      optional: [void_rate_percent]
+      rules:
+        total: numeric
+        void_rate_percent: numeric if present
+    SHIFT_CLOSED:
+      required_any: [yield_deviation_percent, yield_deviation]
+      optional: [yield_deviation_percent, yield_deviation, void_rate_percent]
+      rules:
+        yield_deviation_percent: numeric if present
+        yield_deviation: numeric if present
+        void_rate_percent: numeric if present
+    INVENTORY_ADDED:
+      required: [quantity, ingredient_tracker_id]
+      rules:
+        quantity: numeric
+        ingredient_tracker_id: present
+    INVENTORY_REMOVED:
+      required: [quantity, ingredient_tracker_id]
+      rules:
+        quantity: numeric
+        ingredient_tracker_id: present
+    INVENTORY_ADJUSTED:
+      required: [quantity, ingredient_tracker_id]
+      rules:
+        quantity: numeric
+        ingredient_tracker_id: present
+  sample_request: |
+    POST /stores/123/event_batches/456/events
+    Headers: { X-Api-Key: <api_key>, Content-Type: application/json }
+    Body:
+      { "event": { "event_type": "ORDER_CREATED", "occurred_at": "2024-12-31T23:59:59Z", "payload": { "total": 185.40, "void_rate_percent": 1.5 } } }
+  validation_notes:
+    - Store alignment is enforced: the event's store_id must match its batch store.
+    - All numeric fields must parse as numbers; strings that cannot cast will be rejected.
+    - Payload keys must follow the shapes above; extraneous keys are tolerated but not required.
+
+operational_practices:
+  - Keep one API key per POS instance to ease rotation and auditing; use last_seen_at to monitor health.
+  - Retry transient failures; if unsure about server acceptance, GET the batch/events to reconcile before re-sending to avoid duplicates.
+  - Use UTC for occurred_at; use store-local business_date for batches.
+  - Respect per-store tenancy; never reuse an API key across stores.
+  - Log request_id from meta for support traces.
+
+quick_recap:
+  - Authenticate every ingest call with X-Api-Key for the target store.
+  - Create a batch, then stream ordered, append-only events with validated payload shapes.
+  - Handle errors via the standard { errors, meta } envelope and reconcile by reading batches when needed.

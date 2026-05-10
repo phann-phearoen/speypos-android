@@ -1,0 +1,79 @@
+version: 1
+updated_at: 2026-01-29
+title: Settings Data Structure (Versioned JSON)
+purpose: >
+  Define the required settings payload shapes for frontend integration and
+  document the transition from legacy array-based JSON to versioned objects.
+
+notes:
+  - All JSON settings are now strict, versioned objects.
+  - Unknown keys are rejected; missing keys are rejected.
+  - Validation happens on every create/update and during settings initialization.
+
+settings:
+  system.initialized:
+    value_type: boolean
+    shape:
+      type: boolean
+      example: true
+
+  receipt.copies:
+    value_type: json
+    shape:
+      version: 1
+      copies:
+        - variant: string
+          count: integer # must be >= 1
+    example:
+      version: 1
+      copies:
+        - variant: INTERNAL
+          count: 1
+
+  telegram.intents:
+    value_type: json
+    shape:
+      version: 1
+      intents:
+        - intent: string # must be one of supported intents
+          enabled: boolean
+          chat_id: string
+    supported_intents:
+      - ORDER_TRACKER
+      - SHIFT_TRACKER
+    example:
+      version: 1
+      intents:
+        - intent: ORDER_TRACKER
+          enabled: false
+          chat_id: ''
+        - intent: SHIFT_TRACKER
+          enabled: false
+          chat_id: ''
+
+validation_rules:
+  - Every setting has a fixed schema; unknown keys are rejected.
+  - All required keys must be present.
+  - Types must match exactly; no coercion is performed.
+  - JSON parsing failures are treated as validation errors.
+
+transitions:
+  receipt.copies:
+    previous_shape: >
+      Array of objects: [{ variant: "INTERNAL", count: 1 }, ...]
+    new_shape: >
+      Object wrapper with version: { version: 1, copies: [ ... ] }
+    frontend_action: >
+      Update payloads and parsing to read/write the versioned object.
+
+  telegram.intents:
+    previous_shape: >
+      Array of objects: [{ intent, enabled, chat_id }, ...]
+    new_shape: >
+      Object wrapper with version: { version: 1, intents: [ ... ] }
+    frontend_action: >
+      Update payloads and parsing to read/write the versioned object.
+
+compatibility_notes:
+  - The backend no longer accepts legacy array formats for the above JSON settings.
+  - Update the frontend before deploying this change to avoid validation failures.

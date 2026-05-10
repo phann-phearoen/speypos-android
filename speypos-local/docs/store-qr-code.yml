@@ -1,0 +1,42 @@
+version: 1
+updated_at: 2026-01-29
+title: Store QR Code (Payment Profile)
+purpose: >
+  Describe the store-level QR payment configuration stored in Store.payment_profile
+  and how the frontend should interpret it.
+
+schema:
+  store:
+    payment_profile (JSON): 
+      version: 1
+      qr:
+        enabled: boolean
+        image_url: string|null
+
+rules:
+  - QR payment is active only when: qr.enabled == true AND qr.image_url is a non-empty string.
+  - If qr.image_url is null, qr.enabled must be false.
+  - Deleting the QR image must set:
+      qr.enabled: false
+      qr.image_url: null
+  - Unknown or missing keys are rejected by the backend.
+
+behavior:
+  - The QR image URL points to a locally hosted file under /data/images.
+  - Frontend should display the QR payment option only when active.
+  - Frontend should allow toggling only if a valid image is present.
+
+examples:
+  active_qr:
+    payment_profile:
+      version: 1
+      qr:
+        enabled: true
+        image_url: /media/store/qr.png
+
+  inactive_qr:
+    payment_profile:
+      version: 1
+      qr:
+        enabled: false
+        image_url: null

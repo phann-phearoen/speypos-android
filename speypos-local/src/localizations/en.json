@@ -1,0 +1,90 @@
+{
+  "retried_indicator": " (Retried)",
+  "order_message": {
+    "title": "📦 New Order: #{orderId}",
+    "time": "Time: {time}",
+    "staff": "Staff: {staffName}",
+    "items": "Items:",
+    "item_line": "- {itemName} (x{quantity})",
+    "customization_line": "  • {customName}: {customValue}",
+    "total": "💰 Total: {totalAmount}",
+    "payment": "💳 Payment: {paymentType}",
+    "quantity_short": "x {quantity}",
+    "cash_payment": "Cash",
+    "qr_payment": "QR Code"
+  },
+  "void_message": {
+    "title": "❌ Order Voided: #{orderId}",
+    "time": "Time: {time}",
+    "staff": "Staff: {staffName}",
+    "reason": "Reason: {reason}",
+    "note": "Note: {note}",
+    "reasons": {
+      "mistake": "Mistake",
+      "staff_consumption": "Staff consumption",
+      "other": "Other"
+    }
+  },
+  "shift_close_message": {
+    "title": "🔒 Shift Closed: {date}",
+    "duration": "Duration: {startTime} - {endTime}",
+    "total_orders": "Total Orders: {totalOrders}",
+    "total_items_sold": "Total Items Sold: {totalItems}",
+    "revenue_by_payment_type": "Revenue by Payment Type:",
+    "voided_orders": "Voided Orders: {count}",
+    "voided_items": "Voided Items: {voidedItems}",
+    "voided_amount": "Voided Amount: {amount}",
+    "revenue_line": "- {type}: {amount}",
+    "total_revenue": "Total Revenue: {totalRevenue}",
+    "cash_payment": "Cash",
+    "qr_payment": "QR Code"
+  },
+  "day_close_summary": {
+    "title": "📊 Day Close Summary",
+    "business_date": "Business Date: {date}",
+    "shift_section_header": "Shift #{shiftNumber} Summary",
+    "total_orders": "Orders: {count}",
+    "total_items_sold": "Items Sold: {totalItemsSold}",
+    "total_revenue": "Revenue: {amount}",
+    "payment_breakdown": "Payment Breakdown:",
+    "payment_line": "- {type}: {amount}",
+    "combined_section_header": "Combined Summary",
+    "grand_total_revenue": "Grand Total Revenue: {amount}",
+    "grand_total_items_sold": "Grand Total Items Sold: {grandTotalItemsSold}",
+    "voided_orders": "Voided Orders: {count}",
+    "voided_items": "Voided Items: {count}",
+    "voided_amount": "Voided Amount: {amount}",
+    "net_revenue": "Net Revenue: {amount}",
+    "conclusion": "Day closed successfully.",
+    "cash_payment": "Cash",
+    "qr_payment": "QR Code"
+  },
+  "receipt": {
+    "title": "Order Receipt",
+    "order_id": "Order ID: {orderId}",
+    "date": "Date: {timestamp}",
+    "items_header": "Items",
+    "customization_header": "Details",
+    "quantity_header": "Qty",
+    "payment_details": "Payment Details",
+    "payment_type": "Payment Type: {paymentType}",
+    "total": "Total: {total}",
+    "received_cash": "Received Cash: {receivedCash}",
+    "change": "Change: {change}",
+    "thank_you": "Thank you!",
+    "void_title": "VOID RECEIPT",
+    "void_reason_label": "Reason",
+    "void_note_label": "Note",
+    "voided_by_label": "Voided by",
+    "staff_label": "Staff",
+    "status_label": "Status",
+    "voided_at_label": "Voided at",
+    "original_created_label": "Created at",
+    "void_reasons": {
+      "mistake": "Mistake",
+      "staff_consumption": "Staff consumption",
+      "other": "Other"
+    },
+    "status_voided": "Voided"
+  }
+}

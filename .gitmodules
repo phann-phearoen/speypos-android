@@ -1,6 +1,0 @@
-[submodule "speypos-local"]
-	path = speypos-local
-	url = https://github.com/phann-phearoen/speypos-local.git
-[submodule "speypos-pwa"]
-	path = speypos-pwa
-	url = https://github.com/phann-phearoen/speypos-pwa.git

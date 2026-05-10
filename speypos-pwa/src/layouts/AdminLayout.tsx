@@ -1,0 +1,101 @@
+import { useEffect } from 'react';
+import { useNavigate, Outlet } from 'react-router-dom';
+import { LogOut, Users, Coffee, FolderTree, ArrowLeft, Settings2, ClipboardList, Cog, Store, Layers } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/Logo';
+import { useAuth } from '@/contexts/AuthContext';
+import { NavLink } from '@/components/NavLink';
+import { useTranslation } from '@/lib/i18n';
+
+export default function AdminLayout() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isAdmin, staff, logout } = useAuth();
+  const { t } = useTranslation();
+
+  const tabs = [
+    { id: 'staff', label: t('admin.tab.staff'), icon: <Users className="w-5 h-5" /> },
+    { id: 'menu-items', label: t('admin.tab.menuItems'), icon: <Coffee className="w-5 h-5" /> },
+    { id: 'categories', label: t('admin.tab.categories'), icon: <FolderTree className="w-5 h-5" /> },
+    { id: 'customizations', label: t('admin.tab.customizations'), icon: <Settings2 className="w-5 h-5" /> },
+    { id: 'toppings', label: t('admin.tab.toppings'), icon: <Layers className="w-5 h-5" /> },
+    { id: 'order-history', label: t('admin.tab.orderHistory'), icon: <ClipboardList className="w-5 h-5" /> },
+    { id: 'store', label: t('admin.tab.store'), icon: <Store className="w-5 h-5" /> },
+    { id: 'settings', label: t('admin.tab.settings'), icon: <Cog className="w-5 h-5" /> },
+  ];
+
+  // Protect route
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin) {
+      navigate('/admin/login', { replace: true });
+    }
+  }, [isAuthenticated, isAdmin, navigate]);
+
+  if (!isAuthenticated || !isAdmin) {
+    return null;
+  }
+
+  const handleLogout = () => {
+    logout();
+    navigate('/', { replace: true });
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="h-14 bg-pos-header text-pos-header-foreground flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/pos/shift')}
+            className="text-pos-header-foreground hover:bg-pos-header-foreground/10"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <Logo variant="compact" size="md" inverted />
+          <span className="text-pos-header-foreground/70 text-sm">|</span>
+          <span className="font-semibold text-lg tracking-tight text-pos-header-foreground">{t('admin.dashboard')}</span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-pos-header-foreground/80">
+            {t('admin.welcome')} <span className="font-medium">{staff?.name}</span>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-pos-header-foreground hover:bg-pos-header-foreground/10 gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            {t('admin.logout')}
+          </Button>
+        </div>
+      </header>
+
+      <div className="flex-1 flex">
+        {/* Sidebar */}
+        <aside className="w-56 bg-card border-r border-border shrink-0">
+          <nav className="p-3 space-y-1">
+            {tabs.map((tab) => (
+              <NavLink
+                key={tab.id}
+                to={`/admin/${tab.id}`}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors text-foreground hover:bg-muted"
+                activeClassName="bg-primary text-primary-foreground hover:bg-primary"
+              >
+                {tab.icon}
+                <span className="font-medium">{tab.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-6 h-[100vh] overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

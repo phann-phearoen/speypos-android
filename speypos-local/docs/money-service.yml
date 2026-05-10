@@ -1,0 +1,63 @@
+# SpeyPOS Money Service Documentation
+# This file describes the centralized service for handling currency and monetary values.
+
+service_name: MoneyService
+
+description: >
+  Provides a centralized and safe way to handle monetary values. It ensures that all
+  currency is stored as integers in the smallest unit (e.g., cents) to avoid
+  floating-point errors and is formatted correctly for display based on the
+  active currency setting.
+
+dependencies:
+  - service: SettingsService
+    description: Used to retrieve the active currency setting ('pos.currency').
+
+currency_metadata:
+  description: >
+    A static map defining the rules for each supported currency.
+    The service defaults to 'USD' if the setting is not configured.
+  supported_currencies:
+    - code: USD
+      minor_unit: 2
+      symbol: $
+      description: United States Dollar, stored in cents.
+    - code: KHR
+      minor_unit: 0
+      symbol: ៛
+      description: Cambodian Riel, stored as a whole number.
+
+functions:
+  - name: normalizeInput(amount)
+    description: >
+      Converts a user-facing amount (e.g., 12.50) into an integer for database storage.
+    params:
+      - name: amount
+        type: number
+        description: The amount as a float or integer.
+    returns:
+      type: integer
+      description: The amount in the smallest currency unit (e.g., 1250 for $12.50).
+
+  - name: format(integerAmount)
+    description: >
+      Converts a stored integer amount into a formatted string for display.
+    params:
+      - name: integerAmount
+        type: integer
+        description: The amount in the smallest currency unit.
+    returns:
+      type: string
+      description: A formatted currency string (e.g., "$12.50" or "1,500៛").
+
+  - name: getCurrency()
+    description: Returns the active currency code from settings.
+    returns:
+      type: string
+      example: "USD"
+
+  - name: getMinorUnit()
+    description: Returns the number of decimal places for the active currency.
+    returns:
+      type: integer
+      example: 2

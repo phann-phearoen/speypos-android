@@ -101,7 +101,7 @@ npm run test:refactor3
     PORT=8080
 
     # Database
-    DB_PATH=./database/pos.sqlite
+    DB_PATH=./data/pos.db
 
     # Runtime profile
     # Options: default | android-termux | development

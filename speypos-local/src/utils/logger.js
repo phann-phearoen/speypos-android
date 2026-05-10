@@ -40,14 +40,16 @@ if (env.isDevelopment) {
   // In development, log to the console
   logger.add(new winston.transports.Console());
 } else {
-  // In production, log to rotating files
+  // In production, log to rotating files.
+  // Use smaller limits on Android to avoid exhausting limited phone storage.
+  const isAndroid = env.runtimeProfile === 'android-termux';
   logger.add(new winston.transports.DailyRotateFile({
     filename: 'production-%DATE%.log',
     dirname: paths.logs,
     datePattern: 'YYYY-MM-DD',
     zippedArchive: true,
-    maxSize: '20m',
-    maxFiles: '14d',
+    maxSize: isAndroid ? '5m' : '20m',
+    maxFiles: isAndroid ? '5d' : '14d',
   }));
   // Also add a console logger in production, but with the JSON format
   logger.add(new winston.transports.Console({

@@ -103,10 +103,17 @@ migration_plan:
 
     - id: 7
       area: Storage and filesystem assumptions
+      status: completed
       tasks:
         - Normalize all paths for Android storage realities.
         - Ensure write permissions, directory creation, and log/data retention policies on-device.
         - Confirm backup/export paths for practical support workflows.
+      completed_notes:
+        - syncQueue path decoupled from dbDir — now fixed at data/sync_queue.json relative to projectRoot. Previously would silently migrate if DB_PATH was set to a non-standard location.
+        - receipts added as an explicit first-class path in paths.js (data/receipts).
+        - logger.js DailyRotateFile retention is now profile-aware — android-termux uses 5 MB/5 days vs 20 MB/14 days on other profiles to protect limited phone storage.
+        - README DB_PATH example corrected from ./database/pos.sqlite to ./data/pos.db to match .env.example.
+        - Automated verification at speypos-local/scripts/tests/refactor7.integration.js.
 
     - id: 8
       area: Networking and local API behavior

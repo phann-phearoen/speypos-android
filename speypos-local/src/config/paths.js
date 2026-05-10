@@ -24,7 +24,9 @@ export const paths = {
     category: path.join(projectRoot, 'data/images/category'),
     staff: path.join(projectRoot, 'data/images/staff'),
   },
-  syncQueue: path.join(dbDir, 'sync_queue.json'),
+  // Fixed at data/ regardless of DB_PATH so the queue location is predictable.
+  syncQueue: path.join(projectRoot, 'data/sync_queue.json'),
+  receipts: path.join(projectRoot, 'data/receipts'),
   logs: path.resolve(projectRoot, 'logs'),
   migrations: path.resolve(projectRoot, 'src/storage/migrations'),
   public: path.resolve(projectRoot, 'public'),

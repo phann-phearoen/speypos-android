@@ -1,0 +1,75 @@
+migration_plan:
+  title: SpeyPOS Android Termux Migration Refactor Checklist
+  date: 2026-05-10
+  scope: Refactor checklist only (no detailed implementation plan yet)
+
+  refactors:
+    - id: 1
+      area: Runtime and process model
+      tasks:
+        - Replace Windows service assumptions with a Termux-friendly startup model.
+        - Add auto-restart and health-check behavior suitable for Android app/process lifecycle.
+        - Separate development startup flow from production-on-device startup flow.
+
+    - id: 2
+      area: Printer layer
+      tasks:
+        - Replace OS-specific printing with transport-based printing.
+        - Introduce LAN printer adapters (RAW TCP 9100 and optionally IPP).
+        - Add printer discovery/config validation, retry, timeout, and queue behavior for unstable WiFi.
+        - Keep a fallback mode such as no-printer or console for safe operation.
+
+    - id: 3
+      area: Receipt generation pipeline
+      tasks:
+        - Decouple receipt rendering from printer transport.
+        - Make PDF/browser dependency optional so printing can work without Windows/Chrome assumptions.
+        - Support direct ESC/POS text or byte output path for network printers when possible.
+
+    - id: 4
+      area: Configuration model
+      tasks:
+        - Move from machine/OS-bound configuration to deployment-profile configuration.
+        - Add environment settings for printer host, port, protocol, reconnect behavior, and queue limits.
+        - Remove or gate Windows-only settings and binaries.
+
+    - id: 5
+      area: Deployment and operations scripts
+      tasks:
+        - Replace Windows install/uninstall/launcher scripts with Termux scripts.
+        - Add one-command setup for dependencies, data directories, and startup command.
+        - Add lightweight operational commands: start, stop, status, logs, restart.
+
+    - id: 6
+      area: Dependency and build compatibility
+      tasks:
+        - Revalidate native dependencies on Android ARM.
+        - Replace or isolate packages that are fragile in Termux.
+        - Pin known-good runtime versions and document install order.
+
+    - id: 7
+      area: Storage and filesystem assumptions
+      tasks:
+        - Normalize all paths for Android storage realities.
+        - Ensure write permissions, directory creation, and log/data retention policies on-device.
+        - Confirm backup/export paths for practical support workflows.
+
+    - id: 8
+      area: Networking and local API behavior
+      tasks:
+        - Confirm local server binding, ports, and CORS behavior for Android-hosted frontend/backend.
+        - Add resilient handling for network transitions such as WiFi drop/reconnect and IP changes.
+
+    - id: 9
+      area: Observability and recovery
+      tasks:
+        - Improve structured logs for mobile diagnostics.
+        - Add crash-safe startup checks and recovery actions.
+        - Add explicit degraded-mode signals (for example printer unavailable but POS still usable).
+
+    - id: 10
+      area: Documentation and runbook
+      tasks:
+        - Replace Windows-centric operational docs with Android/Termux operating instructions.
+        - Add troubleshooting for printer connectivity, background kills, and startup failures.
+        - Define supported device/printer matrix and minimum requirements.

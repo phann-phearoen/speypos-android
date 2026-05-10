@@ -47,6 +47,7 @@ migration_plan:
       completed_notes:
         - Printer path no longer depends on HTML/PDF rendering.
         - ESC/POS payload generation is active.
+        - Automated verification added at speypos-local/scripts/tests/refactor3.integration.js.
 
     - id: 4
       area: Configuration model

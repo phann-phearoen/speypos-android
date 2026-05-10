@@ -66,6 +66,12 @@ Refactor 2 integration checks:
 npm run test:refactor2
 ```
 
+Refactor 3 integration checks:
+
+```sh
+npm run test:refactor3
+```
+
 ### Development Environment (macOS / Android)
 
 - Run the service using `npm run dev` for automatic restarts on file changes.

@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import * as settingsRepo from '../storage/repositories/settings.repo.js';
 import { logger } from '../utils/logger.js';
 import { ValidationError, validateSetting } from '../validators/settings.validator.js';
@@ -53,7 +54,7 @@ const defaults = {
       version: 1,
       enabled: false,
       api_key: '',
-      base_url: 'https://speypos-cloud.ryong.net',
+      base_url: env.cloudBaseUrl,
       store_id: null,
       store_linked_at: null,
       store_client_name: null,

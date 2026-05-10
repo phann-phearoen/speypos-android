@@ -29,6 +29,8 @@ function parseBooleanEnv(name, fallback) {
   return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
 }
 
+const VALID_RUNTIME_PROFILES = ['default', 'android-termux', 'development'];
+
 function shouldForceConsolePrinter() {
   const runtimeProfile = process.env.RUNTIME_PROFILE || 'default';
   const fallback = runtimeProfile === 'android-termux';
@@ -57,6 +59,13 @@ validateEnv();
 
 const syncMiniBatchSize = parseIntegerEnv('SYNC_MINI_BATCH_SIZE', 20, { min: 1, max: 200 });
 const runtimeProfile = process.env.RUNTIME_PROFILE || 'default';
+
+if (!VALID_RUNTIME_PROFILES.includes(runtimeProfile)) {
+  throw new Error(
+    `Invalid RUNTIME_PROFILE "${runtimeProfile}". Must be one of: ${VALID_RUNTIME_PROFILES.join(', ')}`
+  );
+}
+
 const forceConsolePrinter = shouldForceConsolePrinter();
 
 export const env = {
@@ -66,6 +75,8 @@ export const env = {
   forceConsolePrinter,
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
   syncMiniBatchSize,
+  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8000',
+  cloudBaseUrl: (process.env.CLOUD_BASE_URL || 'https://speypos-cloud.ryong.net').replace(/\/+$/, ''),
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: process.env.NODE_ENV !== 'production',
 };

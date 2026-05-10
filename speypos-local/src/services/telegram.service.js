@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { formatOrderMessage, formatShiftCloseMessage } from './telegram.formatter.js';
 import * as orderRepo from '../storage/repositories/order.repo.js';
@@ -51,7 +52,7 @@ async function _send(botToken, chatId, text) {
  * @param {string} message - The formatted message text.
  */
 export async function sendTelegramEvent(intent, message) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const botToken = env.telegramBotToken;
 
   if (!botToken) {
     logger.warn(

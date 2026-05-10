@@ -103,23 +103,31 @@ npm run test:refactor3
     # Database
     DB_PATH=./database/pos.sqlite
 
-    # Runtime
+    # Runtime profile
+    # Options: default | android-termux | development
     RUNTIME_PROFILE=android-termux
-    FORCE_CONSOLE_PRINTER=true
 
-    # Printer runtime switch
-    # true: force console output
+    # Printer mode
+    # true: force console output (safe default)
     # false: use printer.lan setting when enabled
     FORCE_CONSOLE_PRINTER=true
 
     # Telegram Notifications (Optional)
+    # Omit or leave blank to disable. chat_id is set via PUT /api/settings/telegram.intents
     TELEGRAM_BOT_TOKEN="your_bot_token_here"
-    TELEGRAM_CHAT_ID="your_chat_id_here"
 
-    # Cloud Sync Mini-Batch
-    # Optional. Defaults to 20 when omitted.
-    # Valid range: 1..200
+    # Cloud Sync Mini-Batch (Optional, default 20, range 1..200)
     SYNC_MINI_BATCH_SIZE=20
+
+    # CORS origin for the PWA frontend (Optional, default http://localhost:8000)
+    CORS_ORIGIN=http://localhost:8080
+
+    # Cloud base URL (Optional, default https://speypos-cloud.ryong.net)
+    # CLOUD_BASE_URL=https://speypos-cloud.ryong.net
+
+    # Logger verbosity (Optional)
+    # production: info level and above | anything else: debug level
+    # NODE_ENV=production
     ```
 
 4.  **Run the application**:

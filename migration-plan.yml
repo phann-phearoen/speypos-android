@@ -51,10 +51,20 @@ migration_plan:
 
     - id: 4
       area: Configuration model
+      status: completed
       tasks:
         - Move from machine/OS-bound configuration to deployment-profile configuration.
         - Add environment settings for printer host, port, protocol, reconnect behavior, and queue limits.
         - Remove or gate Windows-only settings and binaries.
+      completed_notes:
+        - RUNTIME_PROFILE enum validation added; unknown values throw at startup.
+        - corsOrigin and cloudBaseUrl exported from env.js; CORS_ORIGIN and CLOUD_BASE_URL env vars added.
+        - telegram.service.js now uses env.telegramBotToken instead of process.env directly.
+        - httpServer.js CORS origin now reads env.corsOrigin; localhost:8000 no longer hardcoded.
+        - Cloud base URL consolidated from 4 locations into env.cloudBaseUrl (settings.service.js, cloudIngest.service.js, cloudHandshake.service.js, settings.controller.js).
+        - Phantom TELEGRAM_CHAT_ID removed from README .env example.
+        - .env.example added with all 9 real variables.
+        - Automated verification at speypos-local/scripts/tests/refactor4.integration.js.
 
     - id: 5
       area: Deployment and operations scripts

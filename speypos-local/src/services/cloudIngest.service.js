@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import * as settingsService from './settings.service.js';
 import * as storeService from './store.service.js';
@@ -125,7 +126,7 @@ function getConfig() {
   const cloudSync = settingsService.getJSON('cloud.sync') || {};
   const enabled = !!cloudSync.enabled;
   const apiKey = cloudSync.api_key || '';
-  const baseUrl = (cloudSync.base_url || 'https://speypos-cloud.ryong.net').replace(/\/+$/, '');
+  const baseUrl = (cloudSync.base_url || env.cloudBaseUrl).replace(/\/+$/, '');
   const storeId = cloudSync.store_id || null;
   const store = storeService.getStore();
 

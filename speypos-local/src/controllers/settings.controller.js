@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import * as settingsService from '../services/settings.service.js';
 import * as settingsRepo from '../storage/repositories/settings.repo.js';
 import { performHandshake } from '../services/cloudHandshake.service.js';
@@ -85,7 +86,7 @@ export async function upsertSetting(req, res) {
       };
 
       // Default base_url if omitted.
-      merged.base_url = merged.base_url || current.base_url || 'https://speypos-cloud.ryong.net';
+      merged.base_url = merged.base_url || current.base_url || env.cloudBaseUrl;
 
       const apiKeyChanged = merged.api_key && merged.api_key !== current.api_key;
       const baseUrlChanged = merged.base_url !== current.base_url;

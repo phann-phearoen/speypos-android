@@ -1,7 +1,8 @@
+import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
-function normalizeBaseUrl(baseUrl) {
-  if (!baseUrl || typeof baseUrl !== 'string') return 'https://speypos-cloud.ryong.net';
+function normalizeBaseUrl(baseUrl, fallback) {
+  if (!baseUrl || typeof baseUrl !== 'string') return fallback;
   return baseUrl.replace(/\/+$/, '');
 }
 
@@ -10,7 +11,7 @@ function normalizeBaseUrl(baseUrl) {
  * Returns cloud store metadata that should be persisted in cloud.sync settings.
  */
 export async function performHandshake({ apiKey, baseUrl }) {
-  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl, env.cloudBaseUrl);
   const url = `${normalizedBaseUrl}/pos/handshake`;
 
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {

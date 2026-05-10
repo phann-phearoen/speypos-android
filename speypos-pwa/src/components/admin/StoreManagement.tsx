@@ -246,7 +246,7 @@ export function StoreManagement() {
     
     // Poll for server recovery
     const pollInterval = 200; // ms
-    const maxAttempts = 300; // 60 seconds max (300 * 200ms)
+    const maxAttempts = 450; // 90 seconds max (450 * 200ms)
     let attempts = 0;
     
     const poll = async () => {

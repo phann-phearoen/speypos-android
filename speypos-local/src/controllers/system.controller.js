@@ -3,6 +3,8 @@ import { isSystemInitialized } from '../services/setup.service.js';
 import { logger } from "../utils/logger.js";
 import { shutdown } from '../system/lifecycle.js';
 
+const REBOOT_EXIT_CODE = 75;
+
 /**
  * Handles the request to get the system's initialization status.
  */
@@ -24,8 +26,15 @@ export function reboot(req, res) {
   res.status(200).json({ message: 'Server is shutting down for a reboot.' });
 
   logger.info('Reboot requested. Triggering graceful shutdown in 1 second...');
-  setTimeout(() => {
-    shutdown();
+  setTimeout(async () => {
+    try {
+      await shutdown();
+    } catch (error) {
+      logger.error('Error during reboot shutdown flow.', { error: error.message });
+    } finally {
+      logger.info(`Exiting process for reboot with code ${REBOOT_EXIT_CODE}.`);
+      process.exit(REBOOT_EXIT_CODE);
+    }
   }, 1000);
 }
 

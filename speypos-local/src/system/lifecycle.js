@@ -73,7 +73,7 @@ export async function shutdown() {
   closeDatabase();
 
   // 3. Close Puppeteer Browser if open
-  closeBrowser();
+  await closeBrowser();
 
   logger.info('System lifecycle: Shutdown complete.');
 }

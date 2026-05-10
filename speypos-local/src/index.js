@@ -1,15 +1,32 @@
 // --- Service Startup Diagnostic Logging ---
 import { initialize, shutdown } from "./system/lifecycle.js";
 import { logger } from "./utils/logger.js";
-import fs from "fs";
 
-try {
-  fs.appendFileSync(
-    "service.log",
-    `[${new Date().toISOString()}] Service script started\n`
-  );
-} catch (e) {
-  // If logging fails, ignore
+let isShuttingDown = false;
+
+async function gracefulExit({ signal, code }) {
+  if (isShuttingDown) {
+    logger.warn("Graceful shutdown already in progress; ignoring duplicate signal.", {
+      signal,
+      code,
+    });
+    return;
+  }
+
+  isShuttingDown = true;
+  logger.info("Starting graceful shutdown...", { signal, code });
+
+  try {
+    await shutdown();
+  } catch (error) {
+    logger.error("Graceful shutdown encountered an error.", {
+      error: error.message,
+      stack: error.stack,
+    });
+    process.exit(1);
+  }
+
+  process.exit(code);
 }
 
 async function main() {
@@ -29,25 +46,27 @@ async function main() {
 
 // Handle graceful shutdown
 process.on("SIGINT", async () => {
-  logger.info("Received SIGINT. Shutting down gracefully...");
-  await shutdown();
-  process.exit(0);
+  await gracefulExit({ signal: "SIGINT", code: 0 });
 });
 
 process.on("SIGTERM", async () => {
-  logger.info("Received SIGTERM. Shutting down gracefully...");
-  await shutdown();
-  process.exit(0);
+  await gracefulExit({ signal: "SIGTERM", code: 0 });
 });
 
-process.on("uncaughtException", (error) => {
+process.on("uncaughtException", async (error) => {
   logger.error("Uncaught Exception.", {
     error: error.message,
     stack: error.stack,
   });
-  // In a real scenario, we might try a graceful shutdown here, but for now, we exit.
-  // The watchdog will handle cleanup on the next startup.
-  process.exit(1);
+  await gracefulExit({ signal: "uncaughtException", code: 1 });
+});
+
+process.on("unhandledRejection", async (reason) => {
+  logger.error("Unhandled Promise Rejection.", {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+  await gracefulExit({ signal: "unhandledRejection", code: 1 });
 });
 
 main();

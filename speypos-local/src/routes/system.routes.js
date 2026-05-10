@@ -34,7 +34,7 @@ router.get('/system/setup-status', systemController.getSetupStatus);
  *     summary: Trigger a server reboot.
  *     description: |
  *       Initiates a graceful shutdown of the server.
- *       The service manager (e.g., nodemon, pm2, node-windows) is expected to automatically restart the process.
+ *       The runtime supervisor is expected to automatically restart the process.
  *       This is required after completing the initial setup or making other critical configuration changes.
  *     tags:
  *       - System

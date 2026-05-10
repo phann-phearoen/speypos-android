@@ -1,7 +1,6 @@
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
-import { renderReceiptAsPdf, renderReceiptAsHtml } from './puppeteer/receiptPdfGenerator.js';
-import { printTextToWindowsPrinter } from './windowsPrinter.js';
+import { renderReceiptAsPdf } from './puppeteer/receiptPdfGenerator.js';
 import * as orderRepo from '../storage/repositories/order.repo.js';
 import * as settingsService from '../services/settings.service.js';
 import { ORDER_STATUS } from '../constants/order.constants.js';
@@ -54,17 +53,9 @@ export async function printReceipt(order) {
           `Printing to console for variant ${variant} of order ${order.id}:\n${receiptPdf}`
         );
       } else {
-        for (let i = 0; i < count; i++) {
-          logger.info(
-            `Printing copy ${i + 1}/${count} of variant ${variant} for order ${order.id}.`
-          );
-
-          try {
-            await printTextToWindowsPrinter(receiptPdf, printerName);
-          } catch (err) {
-            logger.error(`Windows print failed for copy ${i + 1}/${count}: ${err.message}`);
-          }
-        }
+        throw new Error(
+          'Physical printing is temporarily disabled in Refactor 1. Set FORCE_CONSOLE_PRINTER=true or use CONSOLE mode until LAN printer support is implemented.'
+        );
       }
     }
 

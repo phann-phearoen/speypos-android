@@ -36,7 +36,6 @@ export const paths = {
   migrations: path.resolve(projectRoot, 'src/storage/migrations'),
   public: path.resolve(projectRoot, 'public'),
   seeds: path.resolve(projectRoot, 'data/seeds'),
-  sumatraPdf: path.resolve(projectRoot, 'src/printer/SumatraPDF-3.5.2-64.exe'),
   puppeteerCacheDir: path.join(projectRoot, 'data', 'puppeteer'),
   puppeteerChromeDir: path.join(projectRoot, 'data', 'puppeteer', 'chrome'),
 };

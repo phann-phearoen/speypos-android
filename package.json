@@ -1,7 +1,12 @@
 {
+  "scripts": {
+    "termux:start": "bash scripts/termux/start.sh",
+    "termux:stop": "bash scripts/termux/stop.sh",
+    "termux:status": "bash scripts/termux/status.sh",
+    "termux:restart": "bash scripts/termux/restart.sh",
+    "termux:logs": "bash scripts/termux/logs.sh"
+  },
   "dependencies": {
-    "fs-extra": "^11.3.3",
-    "node-thermal-printer": "^4.5.0",
-    "node-windows": "^1.0.0-beta.8"
+    "node-thermal-printer": "^4.5.0"
   }
 }

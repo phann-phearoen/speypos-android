@@ -1,23 +1,33 @@
 # SpeyPOS
 
-SpeyPOS is a local, offline-first POS (Point of Sale) backend service designed for coffee shops. It runs directly on a Windows 10 POS machine, ensuring that core business operations continue even without an internet connection.
+SpeyPOS is a local, offline-first POS (Point of Sale) backend service designed for coffee shops. It runs on an Android device using Termux, ensuring that core business operations continue even without an internet connection.
 
 ## Core Principles
 
 - **Offline-First**: The system is designed to work completely offline. Internet is only required for cloud sync, which runs in background mini-batches and on final shift-close flush. The local SQLite database is the absolute source of truth.
 - **POS-Grade Reliability**: Built to be resilient. It can recover from crashes and power loss without losing confirmed orders. All critical data is written to disk before any external action (like printing a receipt) is taken.
-- **Windows Target**: While developed on macOS, the primary deployment target is a standard Windows 10 x64 machine. All filesystem and hardware interactions are designed with Windows compatibility in mind.
+- **Android Termux Target**: The primary deployment target is Android via Termux with a watchdog-based runtime. Lifecycle operations are managed through the Termux scripts in the workspace root.
 
 ## Development vs. Production
 
-### Production Environment (Windows 10)
+### Production Environment (Android + Termux)
 
 - The service runs as a background process.
 - It interacts with a local SQLite database file.
-- It connects to a physical receipt printer.
+- During Refactor 1, printer output runs in temporary `CONSOLE` mode.
 - Data is synced to a cloud backend in background mini-batches during an active shift, with a final flush at shift close.
 
-### Development Environment (macOS / Windows)
+Operational commands (from workspace root):
+
+```sh
+npm run termux:start
+npm run termux:status
+npm run termux:logs
+npm run termux:restart
+npm run termux:stop
+```
+
+### Development Environment (macOS / Android)
 
 - Run the service using `npm run dev` for automatic restarts on file changes.
 - Environment variables are loaded from a `.env` file (not committed to git).
@@ -48,9 +58,12 @@ SpeyPOS is a local, offline-first POS (Point of Sale) backend service designed f
     # Database
     DB_PATH=./database/pos.sqlite
 
+    # Runtime
+    RUNTIME_PROFILE=android-termux
+    FORCE_CONSOLE_PRINTER=true
+
     # Printer
-    PRINTER_NAME="POS-80C" # Example for a real printer on Windows
-    # For development, you can use a special value like "CONSOLE"
+    # Required unless FORCE_CONSOLE_PRINTER=true
     # PRINTER_NAME="CONSOLE"
 
     # Telegram Notifications (Optional)

@@ -125,6 +125,45 @@ function validateTelegramIntents(value) {
   });
 }
 
+function validatePrinterLan(value) {
+  if (!isPlainObject(value)) {
+    throw new ValidationError('printer.lan must be an object');
+  }
+
+  assertAllowedKeys(
+    value,
+    ['version', 'enabled', 'protocol', 'host', 'port', 'timeout_ms', 'profile'],
+    'printer.lan'
+  );
+
+  if (value.version !== 1) {
+    throw new ValidationError('printer.lan.version must be 1');
+  }
+
+  assertBoolean(value.enabled, 'printer.lan.enabled');
+  assertString(value.protocol, 'printer.lan.protocol', { allowEmpty: false });
+  assertString(value.host, 'printer.lan.host');
+  assertInteger(value.port, 'printer.lan.port');
+  assertInteger(value.timeout_ms, 'printer.lan.timeout_ms');
+  assertString(value.profile, 'printer.lan.profile', { allowEmpty: false });
+
+  if (value.protocol !== 'raw9100') {
+    throw new ValidationError('printer.lan.protocol must be raw9100');
+  }
+
+  if (value.port < 1 || value.port > 65535) {
+    throw new ValidationError('printer.lan.port must be between 1 and 65535');
+  }
+
+  if (value.timeout_ms < 1000 || value.timeout_ms > 60000) {
+    throw new ValidationError('printer.lan.timeout_ms must be between 1000 and 60000');
+  }
+
+  if (value.enabled && value.host.trim().length === 0) {
+    throw new ValidationError('printer.lan.host must be provided when enabled');
+  }
+}
+
 function validateCloudSync(value) {
   if (!isPlainObject(value)) {
     throw new ValidationError('cloud.sync must be an object');
@@ -181,6 +220,10 @@ const SETTING_SCHEMAS = {
   'receipt.copies': {
     value_type: 'json',
     validate: validateReceiptCopies,
+  },
+  'printer.lan': {
+    value_type: 'json',
+    validate: validatePrinterLan,
   },
   'telegram.intents': {
     value_type: 'json',

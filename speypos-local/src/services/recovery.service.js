@@ -5,6 +5,7 @@ import * as telegramService from './telegram.service.js';
 import { logger } from '../utils/logger.js';
 import { serializeOrder } from '../serializers/order.serializer.js';
 import { ORDER_STATUS } from '../constants/order.constants.js';
+import { runRetryUnprintedOrders } from './retry-unprinted.service.js';
 
 /**
  * Scans for all orders that have not been successfully printed.
@@ -64,42 +65,13 @@ export function getUnreportedShifts() {
  */
 export async function retryUnprintedOrders() {
   const { records } = getUnprintedOrders();
-  if (records.length === 0) {
-    return { succeeded: 0, failed: 0, total: 0 };
-  }
-
-  logger.info(`Starting retry job for ${records.length} unprinted orders.`);
-  let succeeded = 0;
-  for (const shallowOrder of records) {
-    try {
-      // Fetch the full, detailed order object as required by the printer service
-      const order = orderRepo.getOrderById(shallowOrder.id);
-      if (!order) {
-        logger.warn(`Could not find order ${shallowOrder.id} during print retry. Skipping.`);
-        continue;
-      }
-      if (![ORDER_STATUS.COMPLETED, ORDER_STATUS.VOIDED].includes(order.status)) {
-        logger.info(`Skipping print retry for order ${order.id} in status ${order.status}.`);
-        continue;
-      }
-      const fullOrder = serializeOrder(order);
-      // The printReceipt function is idempotent and will handle the check and update
-      await printerService.printReceipt(fullOrder);
-      succeeded++;
-    } catch (error) {
-      logger.error(
-        `Retry job for unprinted orders failed on order ${shallowOrder.id}. Stopping job.`,
-        { error: error.message }
-      );
-      // Stop on first failure
-      break;
-    }
-  }
-  const total = records.length;
-  logger.info(
-    `Finished retry job for unprinted orders. Succeeded: ${succeeded}, Failed: ${total - succeeded}`
-  );
-  return { succeeded, failed: total - succeeded, total };
+  return runRetryUnprintedOrders({
+    records,
+    getOrderById: orderRepo.getOrderById,
+    serializeOrder,
+    printReceipt: printerService.printReceipt,
+    logger,
+  });
 }
 
 /**

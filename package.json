@@ -5,8 +5,5 @@
     "termux:status": "bash scripts/termux/status.sh",
     "termux:restart": "bash scripts/termux/restart.sh",
     "termux:logs": "bash scripts/termux/logs.sh"
-  },
-  "dependencies": {
-    "node-thermal-printer": "^4.5.0"
   }
 }

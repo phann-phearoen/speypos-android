@@ -13,10 +13,6 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 function validateEnv() {
   const required = ['PORT', 'DB_PATH'];
 
-  if (!shouldForceConsolePrinter()) {
-    required.push('PRINTER_NAME');
-  }
-
   const missing = required.filter((v) => !process.env[v]);
 
   if (missing.length > 0) {
@@ -62,12 +58,10 @@ validateEnv();
 const syncMiniBatchSize = parseIntegerEnv('SYNC_MINI_BATCH_SIZE', 20, { min: 1, max: 200 });
 const runtimeProfile = process.env.RUNTIME_PROFILE || 'default';
 const forceConsolePrinter = shouldForceConsolePrinter();
-const printerName = forceConsolePrinter ? 'CONSOLE' : process.env.PRINTER_NAME;
 
 export const env = {
   port: process.env.PORT,
   dbPath: process.env.DB_PATH,
-  printerName,
   runtimeProfile,
   forceConsolePrinter,
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,

@@ -22,6 +22,20 @@ const defaults = {
     category: 'Printing',
     description: 'Configuration for how many copies of a receipt to print for different purposes.',
   },
+  'printer.lan': {
+    value: JSON.stringify({
+      version: 1,
+      enabled: false,
+      protocol: 'raw9100',
+      host: '',
+      port: 9100,
+      timeout_ms: 5000,
+      profile: 'default',
+    }),
+    value_type: 'json',
+    category: 'Printing',
+    description: 'LAN printer configuration for RAW TCP printing transport.',
+  },
   'telegram.intents': {
     value: JSON.stringify({
       version: 1,

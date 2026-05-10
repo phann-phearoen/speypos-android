@@ -1,8 +1,11 @@
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
-import { renderReceiptAsPdf } from './puppeteer/receiptPdfGenerator.js';
+import { renderReceiptAsEscPos } from './escpos/receiptEscPosRenderer.js';
+import { sendToConsolePrinter } from './transports/consolePrinterTransport.js';
+import { sendToRawTcp9100Printer } from './transports/rawTcp9100Transport.js';
 import * as orderRepo from '../storage/repositories/order.repo.js';
 import * as settingsService from '../services/settings.service.js';
+import * as storeService from '../services/store.service.js';
 import { ORDER_STATUS } from '../constants/order.constants.js';
 
 /**
@@ -13,7 +16,26 @@ import { ORDER_STATUS } from '../constants/order.constants.js';
  *
  * @param {object} order - The full order object.
  */
-const printerName = env.printerName || 'CONSOLE';
+function resolvePrinterMode() {
+  if (env.forceConsolePrinter) {
+    return { mode: 'CONSOLE' };
+  }
+
+  const lan = settingsService.getJSON('printer.lan');
+  if (!lan || !lan.enabled) {
+    return { mode: 'CONSOLE' };
+  }
+
+  return {
+    mode: 'RAW_TCP_9100',
+    config: {
+      host: lan.host,
+      port: lan.port,
+      timeoutMs: lan.timeout_ms,
+      profile: lan.profile,
+    },
+  };
+}
 
 export async function printReceipt(order) {
   if (order.printed_at) {
@@ -44,18 +66,34 @@ export async function printReceipt(order) {
       copies,
     });
 
+    const printer = resolvePrinterMode();
+
     for (const copy of copies) {
       const { variant, count } = copy;
-      const receiptPdf = await renderReceiptAsPdf(order, variant);
+      const payload = renderReceiptAsEscPos({
+        ...order,
+        language: storeService.getLanguage() || 'en',
+      }, variant);
 
-      if (printerName === 'CONSOLE') {
-        console.log(
-          `Printing to console for variant ${variant} of order ${order.id}:\n${receiptPdf}`
+      for (let i = 0; i < count; i++) {
+        logger.info(
+          `Printing copy ${i + 1}/${count} of variant ${variant} for order ${order.id}.`
         );
-      } else {
-        throw new Error(
-          'Physical printing is temporarily disabled in Refactor 1. Set FORCE_CONSOLE_PRINTER=true or use CONSOLE mode until LAN printer support is implemented.'
-        );
+
+        if (printer.mode === 'CONSOLE') {
+          await sendToConsolePrinter(payload, {
+            orderId: order.id,
+            variant,
+            copy: i + 1,
+          });
+          continue;
+        }
+
+        await sendToRawTcp9100Printer(payload, printer.config, {
+          orderId: order.id,
+          variant,
+          copy: i + 1,
+        });
       }
     }
 

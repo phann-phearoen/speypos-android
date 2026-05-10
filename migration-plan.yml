@@ -1,30 +1,52 @@
 migration_plan:
   title: SpeyPOS Android Termux Migration Refactor Checklist
   date: 2026-05-10
-  scope: Refactor checklist only (no detailed implementation plan yet)
+  scope: Refactor checklist with implementation status
+  status_summary:
+    refactor_1_runtime_process_model: completed
+    refactor_2_printer_layer: completed
+    refactor_3_receipt_generation_pipeline: completed
+    last_updated: 2026-05-10
 
   refactors:
     - id: 1
       area: Runtime and process model
+      status: completed
       tasks:
         - Replace Windows service assumptions with a Termux-friendly startup model.
         - Add auto-restart and health-check behavior suitable for Android app/process lifecycle.
         - Separate development startup flow from production-on-device startup flow.
+      completed_notes:
+        - Windows service and launcher scripts removed.
+        - Termux watchdog/start-stop-status-log scripts added.
+        - Reboot flow now exits with explicit supervisor restart semantics.
 
     - id: 2
       area: Printer layer
+      status: completed
       tasks:
         - Replace OS-specific printing with transport-based printing.
         - Introduce LAN printer adapters (RAW TCP 9100 and optionally IPP).
         - Add printer discovery/config validation, retry, timeout, and queue behavior for unstable WiFi.
         - Keep a fallback mode such as no-printer or console for safe operation.
+      completed_notes:
+        - RAW TCP 9100 transport and console transport implemented.
+        - ESC/POS renderer implemented and wired into printer service.
+        - Legacy Puppeteer/Sumatra/Windows print modules removed.
+      next_steps:
+        - Add optional IPP transport in a future enhancement.
+        - Add admin UI controls for printer.lan in a future enhancement.
 
     - id: 3
       area: Receipt generation pipeline
+      status: completed
       tasks:
         - Decouple receipt rendering from printer transport.
         - Make PDF/browser dependency optional so printing can work without Windows/Chrome assumptions.
         - Support direct ESC/POS text or byte output path for network printers when possible.
+      completed_notes:
+        - Printer path no longer depends on HTML/PDF rendering.
+        - ESC/POS payload generation is active.
 
     - id: 4
       area: Configuration model

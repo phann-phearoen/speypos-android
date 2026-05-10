@@ -5,7 +5,6 @@ import { initializeStore, getStore } from '../services/store.service.js';
 import { initializeStoreTimezone } from '../services/time.service.js';
 import { logger } from '../utils/logger.js';
 import { runRecoveryChecks } from './watchdog.js';
-import { getBrowser, closeBrowser } from '../printer/puppeteer/browserService.js';
 import { processSyncQueue } from '../sync/syncManager.js';
 
 /**
@@ -48,15 +47,6 @@ export async function initialize() {
   // 8b. Kick off cloud sync queue processing in the background
   process.nextTick(processSyncQueue);
 
-  // 9. Silently start Puppeteer browser
-  try {
-    await getBrowser();
-  } catch (error) {
-    logger.warn('Failed to start Puppeteer browser', { error: error.message });
-    // Close the failed browser, so the next usage can start a new one
-    await closeBrowser();
-  }
-
   logger.info('System lifecycle: Initialization complete.');
 }
 
@@ -71,9 +61,6 @@ export async function shutdown() {
 
   // 2. Close Database Connection
   closeDatabase();
-
-  // 3. Close Puppeteer Browser if open
-  await closeBrowser();
 
   logger.info('System lifecycle: Shutdown complete.');
 }

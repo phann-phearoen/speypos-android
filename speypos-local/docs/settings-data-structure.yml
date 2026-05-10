@@ -30,6 +30,25 @@ settings:
         - variant: INTERNAL
           count: 1
 
+  printer.lan:
+    value_type: json
+    shape:
+      version: 1
+      enabled: boolean
+      protocol: string # raw9100
+      host: string
+      port: integer # 1..65535
+      timeout_ms: integer # 1000..60000
+      profile: string
+    example:
+      version: 1
+      enabled: false
+      protocol: raw9100
+      host: ''
+      port: 9100
+      timeout_ms: 5000
+      profile: default
+
   telegram.intents:
     value_type: json
     shape:
@@ -76,4 +95,5 @@ transitions:
 
 compatibility_notes:
   - The backend no longer accepts legacy array formats for the above JSON settings.
+  - LAN printer settings are validated strictly; unknown keys are rejected.
   - Update the frontend before deploying this change to avoid validation failures.

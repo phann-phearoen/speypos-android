@@ -27,6 +27,45 @@ npm run termux:restart
 npm run termux:stop
 ```
 
+Enable LAN printer transport (backend-only in Refactor 2):
+
+1. Keep `FORCE_CONSOLE_PRINTER=false` in `.env`.
+2. Update `printer.lan` setting via API:
+
+```sh
+curl -X PUT http://localhost:8080/api/settings/printer.lan \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "value": {
+            "version": 1,
+            "enabled": true,
+            "protocol": "raw9100",
+            "host": "192.168.1.50",
+            "port": 9100,
+            "timeout_ms": 5000,
+            "profile": "default"
+        },
+        "value_type": "json",
+        "category": "Printing",
+        "description": "LAN printer config"
+    }'
+```
+
+Backend helper commands:
+
+```sh
+npm run printer:lan:get
+npm run printer:lan:set -- --host=192.168.1.50 --port=9100 --timeout=5000 --profile=default --enabled=true
+npm run printer:lan:test
+npm run printer:lan:disable
+```
+
+Refactor 2 integration checks:
+
+```sh
+npm run test:refactor2
+```
+
 ### Development Environment (macOS / Android)
 
 - Run the service using `npm run dev` for automatic restarts on file changes.
@@ -62,9 +101,10 @@ npm run termux:stop
     RUNTIME_PROFILE=android-termux
     FORCE_CONSOLE_PRINTER=true
 
-    # Printer
-    # Required unless FORCE_CONSOLE_PRINTER=true
-    # PRINTER_NAME="CONSOLE"
+    # Printer runtime switch
+    # true: force console output
+    # false: use printer.lan setting when enabled
+    FORCE_CONSOLE_PRINTER=true
 
     # Telegram Notifications (Optional)
     TELEGRAM_BOT_TOKEN="your_bot_token_here"

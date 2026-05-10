@@ -1,33 +1,64 @@
-// const ThermalPrinter = require('node-thermal-printer');
-// const PrinterTypes = ThermalPrinter.types;
-const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
+const path = require('path');
+const { pathToFileURL } = require('url');
 
-const printer = new ThermalPrinter({
-  type: PrinterTypes.EPSON,
-  interface: 'printer:XP-80C',
-  width: 80,
-  options: {
-    timeout: 5000,
-  },
-});
+const printerHost = process.env.PRINTER_HOST;
+const printerPort = Number.parseInt(process.env.PRINTER_PORT || '9100', 10);
+const printerTimeout = Number.parseInt(process.env.PRINTER_TIMEOUT_MS || '5000', 10);
 
-async function test() {
-  console.log("Checking printer connection...");
-  const connected = await printer.isPrinterConnected();
-  console.log("Printer connected:", connected);
-
-  if (!connected) return;
-
-  printer.alignCenter();
-  printer.println("SPEYPOS PRINTER TEST");
-  printer.drawLine();
-  printer.println("USB001 / XP-80C");
-  printer.println(new Date().toISOString());
-  printer.drawLine();
-  printer.cut();
-
-  await printer.execute();
-  console.log("Print job sent.");
+if (!printerHost) {
+  console.error('Missing PRINTER_HOST environment variable.');
+  process.exit(1);
 }
 
-test().catch(console.error);
+function getModuleUrl(relativePath) {
+  const absolutePath = path.resolve(__dirname, '..', 'speypos-local', 'src', relativePath);
+  return pathToFileURL(absolutePath).href;
+}
+
+function buildSampleOrder() {
+  return {
+    id: 'printer-test-order',
+    created_at: Date.now(),
+    status: 'COMPLETED',
+    items: [
+      {
+        menu_item_name: 'LAN TEST DRINK',
+        quantity: 1,
+        customizations: [{ value: 'No sugar' }],
+        toppings: [{ name: 'Pearl', quantity: 1, unit_label: 'qty' }],
+      },
+    ],
+    payments: [],
+  };
+}
+
+async function test() {
+  const { renderReceiptAsEscPos } = await import(getModuleUrl('printer/escpos/receiptEscPosRenderer.js'));
+  const { sendToRawTcp9100Printer } = await import(
+    getModuleUrl('printer/transports/rawTcp9100Transport.js')
+  );
+
+  const payload = renderReceiptAsEscPos(buildSampleOrder(), 'INTERNAL');
+
+  await sendToRawTcp9100Printer(
+    payload,
+    {
+      host: printerHost,
+      port: printerPort,
+      timeoutMs: printerTimeout,
+      profile: 'printer-test',
+    },
+    {
+      orderId: 'printer-test-order',
+      variant: 'INTERNAL',
+      copy: 1,
+    }
+  );
+
+  console.log('Print payload sent successfully.');
+}
+
+test().catch((error) => {
+  console.error('Printer test failed:', error.message);
+  process.exit(1);
+});

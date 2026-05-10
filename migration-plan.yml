@@ -131,14 +131,32 @@ migration_plan:
 
     - id: 9
       area: Observability and recovery
+      status: completed
       tasks:
         - Improve structured logs for mobile diagnostics.
         - Add crash-safe startup checks and recovery actions.
         - Add explicit degraded-mode signals (for example printer unavailable but POS still usable).
+      completed_notes:
+        - Added runtime status module with startup phase, recovery state, degraded reasons, and last recovery summary.
+        - Startup lifecycle now emits explicit phase transitions (initializing, recovering, setup_mode, ready, shutting_down).
+        - Startup recovery now runs both retryUnprintedOrders and retryUnreportedTelegrams; results are persisted in runtime status.
+        - Added request correlation middleware in httpServer.js with x-request-id propagation and structured request-complete logs (method/path/status/duration).
+        - /api/system/pending-actions now returns degraded signals (healthState, isDegraded, degradedReasons, recoveryRunning, startupPhase).
+        - Added /api/system/runtime-status endpoint for diagnostics snapshot.
+        - runRetryJobs now tracks manual recovery state/result/error in runtime status.
+        - PWA admin header now shows Healthy/Recovering/Degraded chip and concise reason text from pending-actions.
+        - Automated verification at speypos-local/scripts/tests/refactor9.integration.js.
 
     - id: 10
       area: Documentation and runbook
+      status: completed
       tasks:
         - Replace Windows-centric operational docs with Android/Termux operating instructions.
         - Add troubleshooting for printer connectivity, background kills, and startup failures.
         - Define supported device/printer matrix and minimum requirements.
+      completed_notes:
+        - Reworked speypos-local README into an Android + Termux runbook with first-time setup, daily operations, LAN printer operations, and backend development workflow.
+        - Added focused troubleshooting sections for printer connectivity failures, background kill/reboot startup issues, and startup failures.
+        - Added explicit supported device/printer matrix and minimum requirements for production deployment.
+        - Replaced generic speypos-pwa README template with project-specific setup/build/deployment guidance aligned to local backend hosting.
+        - Automated verification at speypos-local/scripts/tests/refactor10.integration.js.

@@ -8,16 +8,42 @@ SpeyPOS is a local, offline-first POS (Point of Sale) backend service designed f
 - **POS-Grade Reliability**: Built to be resilient. It can recover from crashes and power loss without losing confirmed orders. All critical data is written to disk before any external action (like printing a receipt) is taken.
 - **Android Termux Target**: The primary deployment target is Android via Termux with a watchdog-based runtime. Lifecycle operations are managed through the Termux scripts in the workspace root.
 
-## Development vs. Production
+## Android + Termux Runbook
 
-### Production Environment (Android + Termux)
+This project is operated on Android via Termux. Windows service workflows are not supported.
 
-- The service runs as a background process.
-- It interacts with a local SQLite database file.
-- During Refactor 1, printer output runs in temporary `CONSOLE` mode.
-- Data is synced to a cloud backend in background mini-batches during an active shift, with a final flush at shift close.
+### First-Time Device Setup
 
-Operational commands (from workspace root):
+Run these commands from the workspace root:
+
+```sh
+npm run termux:setup
+```
+
+What setup does:
+
+1. Installs required Termux packages and native build toolchain.
+2. Installs backend dependencies.
+3. Creates required data and runtime log directories.
+4. Creates `.env` from `.env.example` when missing.
+5. Installs Termux:Boot hook for auto-start.
+
+Then edit `speypos-local/.env` and verify at minimum:
+
+```env
+PORT=8080
+DB_PATH=./data/pos.db
+RUNTIME_PROFILE=android-termux
+FORCE_CONSOLE_PRINTER=true
+CORS_ORIGIN=http://localhost:8000
+SYNC_MINI_BATCH_SIZE=20
+# CLOUD_FETCH_TIMEOUT_MS=15000
+# TELEGRAM_FETCH_TIMEOUT_MS=8000
+```
+
+### Daily Operations
+
+All commands run from workspace root:
 
 ```sh
 npm run termux:start
@@ -27,31 +53,41 @@ npm run termux:restart
 npm run termux:stop
 ```
 
-Enable LAN printer transport (backend-only in Refactor 2):
+Expected behavior:
 
-1. Keep `FORCE_CONSOLE_PRINTER=false` in `.env`.
-2. Update `printer.lan` setting via API:
+1. `termux:start` launches the watchdog and backend.
+2. `termux:status` reports current watchdog/backend PID state.
+3. `termux:logs` tails runtime diagnostics.
+4. `termux:restart` performs graceful stop/start.
+5. `termux:stop` signals shutdown and waits for watchdog exit.
+
+### Printer Operations (RAW TCP 9100)
+
+Default safety mode on Android is console output. To enable LAN printer transport:
+
+1. Set `FORCE_CONSOLE_PRINTER=false` in `speypos-local/.env`.
+2. Configure `printer.lan`:
 
 ```sh
 curl -X PUT http://localhost:8080/api/settings/printer.lan \
-    -H 'Content-Type: application/json' \
-    -d '{
-        "value": {
-            "version": 1,
-            "enabled": true,
-            "protocol": "raw9100",
-            "host": "192.168.1.50",
-            "port": 9100,
-            "timeout_ms": 5000,
-            "profile": "default"
-        },
-        "value_type": "json",
-        "category": "Printing",
-        "description": "LAN printer config"
-    }'
+  -H 'Content-Type: application/json' \
+  -d '{
+    "value": {
+      "version": 1,
+      "enabled": true,
+      "protocol": "raw9100",
+      "host": "192.168.1.50",
+      "port": 9100,
+      "timeout_ms": 5000,
+      "profile": "default"
+    },
+    "value_type": "json",
+    "category": "Printing",
+    "description": "LAN printer config"
+  }'
 ```
 
-Backend helper commands:
+Optional helper commands:
 
 ```sh
 npm run printer:lan:get
@@ -60,80 +96,88 @@ npm run printer:lan:test
 npm run printer:lan:disable
 ```
 
-Refactor 2 integration checks:
+### Troubleshooting
+
+#### Printer connectivity failures
+
+Symptoms:
+
+1. Order completes but print job fails.
+2. Logs show timeout/socket errors for RAW TCP printer.
+
+Actions:
+
+1. Confirm printer IP is reachable from device WiFi.
+2. Confirm `printer.lan.enabled=true`, host, port `9100`, and timeout in settings.
+3. Run `npm run printer:lan:test`.
+4. Temporarily set `FORCE_CONSOLE_PRINTER=true` to keep POS operational while network printing is repaired.
+
+#### App does not come back after reboot/background kill
+
+Symptoms:
+
+1. POS unreachable after phone reboot.
+2. No active backend process in status output.
+
+Actions:
+
+1. Ensure Termux:Boot app is installed and battery optimizations are disabled for Termux/Termux:Boot.
+2. Re-run `npm run termux:setup` to reinstall boot hook if needed.
+3. Inspect `npm run termux:logs` for startup failure details.
+4. Start manually with `npm run termux:start` and verify with `npm run termux:status`.
+
+#### Startup failures
+
+Symptoms:
+
+1. Service exits immediately on start.
+2. Repeated restart attempts in watchdog logs.
+
+Actions:
+
+1. Validate `.env` values (`PORT`, `DB_PATH`, `RUNTIME_PROFILE`).
+2. Run `node --check speypos-local/src/index.js` for quick syntax sanity.
+3. Confirm database path directory is writable.
+4. If native module issues appear, re-run `npm run termux:setup` (includes build toolchain and native smoke test).
+
+### Supported Device and Printer Matrix
+
+| Category | Supported | Notes |
+|---|---|---|
+| Android runtime | Android 10+ (Termux) | Android 12+ recommended |
+| CPU | ARM64 (aarch64) | 64-bit devices strongly recommended |
+| Backend runtime | Node.js 22.x | Enforced via `engines` in package.json |
+| Printer protocol | RAW TCP 9100 | Primary supported production path |
+| Printer fallback | Console mode | Safe degraded mode when LAN printer is unavailable |
+| Cloud sync | Optional | POS remains functional offline |
+
+### Minimum Requirements
+
+1. Android phone/tablet with 2 GB RAM minimum (4 GB recommended).
+2. At least 500 MB free storage for app data/logs and build artifacts.
+3. Stable local WiFi for LAN printing.
+4. Termux and Termux:Boot installed.
+
+## Development (macOS / Desktop)
+
+1. Use Node.js 22+.
+2. Install dependencies in `speypos-local`:
 
 ```sh
-npm run test:refactor2
+npm install
 ```
 
-Refactor 3 integration checks:
+3. Run backend in development mode:
 
 ```sh
-npm run test:refactor3
+npm run dev
 ```
 
-### Development Environment (macOS / Android)
+4. For Android-like backend behavior on desktop:
 
-- Run the service using `npm run dev` for automatic restarts on file changes.
-- Environment variables are loaded from a `.env` file (not committed to git).
-- Printer output can be mocked to log to the console instead of a physical device.
-
-## Getting Started
-
-1.  **Install Node.js**: Make sure you have Node.js version 18. Use `nvm` or `nvs` for easy version management.
-
-    ```sh
-    nvm use
-    ```
-
-2.  **Install Dependencies**:
-
-    ```sh
-    npm install
-    ```
-
-3.  **Configure Environment**:
-    Create a `.env` file in the root directory. See `src/config/env.js` for required variables.
-    Example `.env`:
-
-    ```env
-    # Server
-    PORT=8080
-
-    # Database
-    DB_PATH=./data/pos.db
-
-    # Runtime profile
-    # Options: default | android-termux | development
-    RUNTIME_PROFILE=android-termux
-
-    # Printer mode
-    # true: force console output (safe default)
-    # false: use printer.lan setting when enabled
-    FORCE_CONSOLE_PRINTER=true
-
-    # Telegram Notifications (Optional)
-    # Omit or leave blank to disable. chat_id is set via PUT /api/settings/telegram.intents
-    TELEGRAM_BOT_TOKEN="your_bot_token_here"
-
-    # Cloud Sync Mini-Batch (Optional, default 20, range 1..200)
-    SYNC_MINI_BATCH_SIZE=20
-
-    # CORS origin for the PWA frontend (Optional, default http://localhost:8000)
-    CORS_ORIGIN=http://localhost:8080
-
-    # Cloud base URL (Optional, default https://speypos-cloud.ryong.net)
-    # CLOUD_BASE_URL=https://speypos-cloud.ryong.net
-
-    # Logger verbosity (Optional)
-    # production: info level and above | anything else: debug level
-    # NODE_ENV=production
-    ```
-
-4.  **Run the application**:
-    ```sh
-    npm start
-    ```
+```sh
+npm run start:android
+```
 
 ## Project Structure
 

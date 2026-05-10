@@ -2,15 +2,36 @@ import { useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { LogOut, Users, Coffee, FolderTree, ArrowLeft, Settings2, ClipboardList, Cog, Store, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { NavLink } from '@/components/NavLink';
 import { useTranslation } from '@/lib/i18n';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, staff, logout } = useAuth();
+  const { status: pendingStatus, refresh: refreshPendingActions } = usePendingActions();
   const { t } = useTranslation();
+
+  const healthState = pendingStatus?.healthState || 'healthy';
+  const isRecovering = healthState === 'recovering';
+  const isDegraded = healthState === 'degraded';
+
+  let statusLabel = 'Healthy';
+  let statusVariant: 'default' | 'secondary' | 'destructive' | 'outline' = 'secondary';
+  let statusReason = '';
+
+  if (isRecovering) {
+    statusLabel = 'Recovering';
+    statusVariant = 'default';
+    statusReason = 'Startup/manual recovery job is in progress.';
+  } else if (isDegraded) {
+    statusLabel = 'Degraded';
+    statusVariant = 'destructive';
+    statusReason = (pendingStatus?.degradedReasons || []).join(', ') || 'Pending recovery actions detected.';
+  }
 
   const tabs = [
     { id: 'staff', label: t('admin.tab.staff'), icon: <Users className="w-5 h-5" /> },
@@ -29,6 +50,19 @@ export default function AdminLayout() {
       navigate('/admin/login', { replace: true });
     }
   }, [isAuthenticated, isAdmin, navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin) {
+      return;
+    }
+
+    refreshPendingActions();
+    const timer = setInterval(() => {
+      refreshPendingActions();
+    }, 15000);
+
+    return () => clearInterval(timer);
+  }, [isAuthenticated, isAdmin, refreshPendingActions]);
 
   if (!isAuthenticated || !isAdmin) {
     return null;
@@ -58,6 +92,14 @@ export default function AdminLayout() {
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Badge variant={statusVariant}>{statusLabel}</Badge>
+            {statusReason ? (
+              <span className="text-xs text-pos-header-foreground/70 max-w-[320px] truncate" title={statusReason}>
+                {statusReason}
+              </span>
+            ) : null}
+          </div>
           <span className="text-sm text-pos-header-foreground/80">
             {t('admin.welcome')} <span className="font-medium">{staff?.name}</span>
           </span>

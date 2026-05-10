@@ -204,6 +204,26 @@ export interface PendingActionsStatus {
   unreportedOrdersCount: number;
   hasUnreportedShifts: boolean;
   unreportedShiftsCount: number;
+  isDegraded: boolean;
+  healthState: 'healthy' | 'recovering' | 'degraded';
+  degradedReasons: string[];
+  recoveryRunning: boolean;
+  startupPhase: string;
+}
+
+export interface RuntimeStatus {
+  startupPhase: string;
+  recoveryRunning: boolean;
+  degraded: boolean;
+  degradedReasons: string[];
+  lastRecoveryRun: {
+    context: string;
+    at: string;
+    printRetry?: unknown;
+    telegramRetry?: unknown;
+    error?: string;
+  } | null;
+  updatedAt: string;
 }
 
 export interface Setting {

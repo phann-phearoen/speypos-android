@@ -1,5 +1,11 @@
 import { logger } from '../utils/logger.js';
 import * as recoveryService from '../services/recovery.service.js';
+import {
+  setRecoveryRunning,
+  setStartupPhase,
+  recordRecoveryResult,
+  recordRecoveryError,
+} from './runtimeStatus.js';
 
 /**
  * Runs recovery checks on system startup.
@@ -7,6 +13,25 @@ import * as recoveryService from '../services/recovery.service.js';
  */
 export async function runRecoveryChecks() {
   logger.info('Watchdog: Running startup recovery checks...');
-  await recoveryService.retryUnprintedOrders();
-  logger.info('Watchdog: Recovery checks complete.');
+  setStartupPhase('recovering');
+  setRecoveryRunning(true, 'startup');
+
+  try {
+    const printRetry = await recoveryService.retryUnprintedOrders();
+    const telegramRetry = await recoveryService.retryUnreportedTelegrams();
+
+    recordRecoveryResult({
+      context: 'startup',
+      printRetry,
+      telegramRetry,
+    });
+
+    logger.info('Watchdog: Recovery checks complete.');
+    return { printRetry, telegramRetry };
+  } catch (error) {
+    recordRecoveryError(error, 'startup');
+    throw error;
+  } finally {
+    setRecoveryRunning(false, 'startup');
+  }
 }

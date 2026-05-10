@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { randomUUID } from 'crypto';
 import { env } from '../config/env.js';
 import { paths } from '../config/paths.js';
 import { logger } from '../utils/logger.js';
@@ -39,6 +40,34 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 app.use(express.json());
+
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  const incoming = req.headers['x-request-id'];
+  const requestId = typeof incoming === 'string' && incoming.length > 0
+    ? incoming
+    : randomUUID();
+
+  req.requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+
+  res.on('finish', () => {
+    if (!req.originalUrl.startsWith('/api')) {
+      return;
+    }
+
+    logger.info('HTTP request completed.', {
+      event: 'http.request',
+      requestId,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+
+  next();
+});
 
 let server;
 const connections = new Set();

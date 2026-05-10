@@ -6,11 +6,13 @@ import { initializeStoreTimezone } from '../services/time.service.js';
 import { logger } from '../utils/logger.js';
 import { runRecoveryChecks } from './watchdog.js';
 import { processSyncQueue } from '../sync/syncManager.js';
+import { setStartupPhase } from './runtimeStatus.js';
 
 /**
  * Initializes all system components in the correct order.
  */
 export async function initialize() {
+  setStartupPhase('initializing');
   logger.info('System lifecycle: Initializing...');
 
   // 1. Initialize Database
@@ -39,6 +41,8 @@ export async function initialize() {
 
     // 7. Run Watchdog/Recovery Checks only in normal mode
     await runRecoveryChecks();
+  } else {
+    setStartupPhase('setup_mode');
   }
 
   // 8. Start HTTP Server in the determined mode
@@ -47,6 +51,7 @@ export async function initialize() {
   // 8b. Kick off cloud sync queue processing in the background
   process.nextTick(processSyncQueue);
 
+  setStartupPhase('ready');
   logger.info('System lifecycle: Initialization complete.');
 }
 
@@ -54,6 +59,7 @@ export async function initialize() {
  * Shuts down all system components gracefully.
  */
 export async function shutdown() {
+  setStartupPhase('shutting_down');
   logger.info('System lifecycle: Shutting down...');
 
   // 1. Stop HTTP Server (stops accepting new requests)

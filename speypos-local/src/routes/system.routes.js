@@ -26,6 +26,7 @@ const router = Router();
  *         description: Internal server error.
  */
 router.get('/system/setup-status', systemController.getSetupStatus);
+router.get('/system/runtime-status', systemController.getRuntimeStatusSnapshot);
 
 /**
  * @swagger

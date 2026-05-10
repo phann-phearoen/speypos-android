@@ -1,4 +1,5 @@
 // API Client for SpeyPOS Local Backend
+import type { PendingActionsStatus, RuntimeStatus } from '@/types/pos';
 
 const API_BASE = 'http://localhost:8080/api';
 const BACKEND_URL = 'http://localhost:8080';
@@ -373,7 +374,8 @@ export const settingsApi = {
 
 // System API (pending actions & recovery)
 export const systemApi = {
-  getPendingActions: () => request<any>('/system/pending-actions'),
+  getPendingActions: () => request<PendingActionsStatus>('/system/pending-actions'),
+  getRuntimeStatus: () => request<RuntimeStatus>('/system/runtime-status'),
   triggerRetry: () => request<null>('/system/retry-jobs', { method: 'POST' }),
   reboot: () => request<{ message: string }>('/system/reboot', { method: 'POST' }),
 };

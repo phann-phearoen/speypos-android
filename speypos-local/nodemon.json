@@ -1,5 +1,13 @@
 {
+  "watch": ["src"],
+  "ext": "js,json,mjs",
   "ignore": [
-    "data/sync_queue.json"
+    "data/sync_queue.json",
+    "data/**/*.db",
+    "data/**/*.db-wal",
+    "data/**/*.db-shm",
+    "data/receipts/**",
+    "data/images/**",
+    "logs/**"
   ]
 }

@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-set -u
+set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNTIME_DIR="$ROOT_DIR/speypos-local/logs/runtime"

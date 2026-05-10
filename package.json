@@ -1,5 +1,7 @@
 {
   "scripts": {
+    "termux:setup": "bash scripts/termux/setup.sh",
+    "termux:boot": "bash scripts/termux/boot.sh",
     "termux:start": "bash scripts/termux/start.sh",
     "termux:stop": "bash scripts/termux/stop.sh",
     "termux:status": "bash scripts/termux/status.sh",

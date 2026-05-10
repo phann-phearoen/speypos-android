@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-set -u
+set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNTIME_DIR="$ROOT_DIR/speypos-local/logs/runtime"
@@ -8,7 +8,20 @@ APP_PID_FILE="$RUNTIME_DIR/app.pid"
 STOP_FILE="$RUNTIME_DIR/stop.flag"
 LOG_FILE="$RUNTIME_DIR/watchdog.log"
 
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8080/api/health}"
+# Source .env to read PORT for health check URL (fallback: 8080)
+ENV_FILE="$ROOT_DIR/speypos-local/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  PORT="$(grep -E '^PORT=' "$ENV_FILE" | head -1 | cut -d= -f2 | tr -d '[:space:]')" || true
+fi
+PORT="${PORT:-8080}"
+
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${PORT}/api/health}"
+
+# Check curl availability once at startup; degrade gracefully if absent
+HAS_CURL=0
+if command -v curl >/dev/null 2>&1; then
+  HAS_CURL=1
+fi
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
 HEALTH_FAIL_THRESHOLD="${HEALTH_FAIL_THRESHOLD:-3}"
 RESTART_BACKOFF_BASE="${RESTART_BACKOFF_BASE:-2}"
@@ -25,7 +38,11 @@ fi
 echo $$ > "$WATCHDOG_PID_FILE"
 rm -f "$STOP_FILE"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] watchdog started (pid=$$)" >> "$LOG_FILE"
+if (( HAS_CURL == 0 )); then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] warning: curl not found; health polling disabled" >> "$LOG_FILE"
+fi
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] watchdog started (pid=$$, port=$PORT, health_url=$HEALTH_URL)" >> "$LOG_FILE"
 
 cleanup() {
   rm -f "$WATCHDOG_PID_FILE"
@@ -59,7 +76,9 @@ while true; do
       break
     fi
 
-    if curl -sf "$HEALTH_URL" >/dev/null 2>&1; then
+    if (( HAS_CURL == 0 )); then
+      : # curl not available; skip health polling
+    elif curl -sf "$HEALTH_URL" >/dev/null 2>&1; then
       health_failures=0
     else
       health_failures=$((health_failures + 1))

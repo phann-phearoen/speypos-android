@@ -68,10 +68,22 @@ migration_plan:
 
     - id: 5
       area: Deployment and operations scripts
+      status: completed
       tasks:
         - Replace Windows install/uninstall/launcher scripts with Termux scripts.
         - Add one-command setup for dependencies, data directories, and startup command.
         - Add lightweight operational commands: start, stop, status, logs, restart.
+      completed_notes:
+        - setup.sh added — installs Termux packages, npm install, data dirs, .env, Termux:Boot hook.
+        - watchdog.sh curl guard added; degrades gracefully if curl absent; HEALTH_URL built from .env PORT.
+        - boot.sh output redirected to runtime log for on-device diagnostics.
+        - stop.sh post-SIGTERM wait loop added; restart.sh hardcoded sleep 2 removed.
+        - start.sh startup confirmation poll added for watchdog.pid.
+        - All 8 scripts standardized to set -euo pipefail.
+        - nodemon.json extended to ignore SQLite WAL files, images, receipts, logs; watch scoped to src/.
+        - start:android npm script added to speypos-local/package.json.
+        - termux:setup and termux:boot added to root package.json.
+        - Automated verification at speypos-local/scripts/tests/refactor5.integration.js.
 
     - id: 6
       area: Dependency and build compatibility

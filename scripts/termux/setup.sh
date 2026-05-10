@@ -14,19 +14,36 @@ log "SpeyPOS Termux setup starting..."
 log "Root: $ROOT_DIR"
 
 # ── 1. Required Termux packages ───────────────────────────────────────────────
-log "Installing required packages (node, npm, curl)..."
+# NOTE: better-sqlite3 prebuilts are compiled for glibc; Termux uses Android
+# Bionic libc, so the prebuilt binary will never load here. npm install will
+# compile better-sqlite3 from source automatically — clang, make, python, and
+# pkg-config are therefore REQUIRED, not optional.
+log "Installing required packages (node, npm, curl, build tools)..."
 if command -v pkg >/dev/null 2>&1; then
-  pkg install -y nodejs npm curl
+  pkg install -y nodejs npm curl python make clang pkg-config
   ok "Packages installed."
 else
   warn "'pkg' not found. Are you running this inside Termux?"
-  warn "Install nodejs, npm, and curl manually then re-run setup."
+  warn "Install nodejs, npm, curl, python, make, clang, pkg-config manually then re-run setup."
 fi
 
 # ── 2. Node dependencies ───────────────────────────────────────────────────────
-log "Installing Node.js dependencies..."
+log "Installing Node.js dependencies (better-sqlite3 will compile from source — this takes ~1-2 min)..."
 npm --prefix "$LOCAL_DIR" install
 ok "npm install complete."
+
+# ── 2a. Native module smoke test ──────────────────────────────────────────────
+# Verifies better-sqlite3 compiled correctly and can open an in-memory DB.
+# An ABI mismatch or failed build would be caught here before the service starts.
+log "Running native module smoke test..."
+# better-sqlite3 is CommonJS; use require() even though the project uses ESM
+if node -e "const D=require('$LOCAL_DIR/node_modules/better-sqlite3'); new D(':memory:').exec('SELECT 1'); console.log('[setup] better-sqlite3 smoke test passed.');"; then
+  ok "Native module verified."
+else
+  warn "Native module smoke test failed. Check build output above."
+  warn "Hint: ensure clang, make, and python are installed. Try: pkg install clang make python"
+  exit 1
+fi
 
 # ── 3. Data directories ───────────────────────────────────────────────────────
 log "Creating data directories..."

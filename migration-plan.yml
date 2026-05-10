@@ -87,10 +87,19 @@ migration_plan:
 
     - id: 6
       area: Dependency and build compatibility
+      status: completed
       tasks:
         - Revalidate native dependencies on Android ARM.
         - Replace or isolate packages that are fragile in Termux.
         - Pin known-good runtime versions and document install order.
+      completed_notes:
+        - better-sqlite3 glibc prebuilts never load on Termux (Bionic libc); must compile from source.
+        - setup.sh pkg install extended with clang, make, python, pkg-config (required, not optional).
+        - setup.sh native smoke test added after npm install — opens in-memory DB and runs SELECT 1.
+        - better-sqlite3 exact-pinned to 11.10.0 in package.json (no ^ range drift).
+        - engines field added to package.json (node >=22.0.0, npm >=10.0.0).
+        - All other deps (cors, express, multer, date-fns-tz, dotenv, winston) are pure JS — no ARM issues.
+        - Automated verification at speypos-local/scripts/tests/refactor6.integration.js.
 
     - id: 7
       area: Storage and filesystem assumptions

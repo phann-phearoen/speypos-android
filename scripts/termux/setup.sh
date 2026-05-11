@@ -48,8 +48,14 @@ if (( NODE_MAJOR < 22 || NODE_MAJOR >= 26 )); then
 fi
 
 # ── 2. Node dependencies ───────────────────────────────────────────────────────
+# GYP_DEFINES is the standard gyp mechanism for injecting build variables.
+# Node 24 on Termux requires android_ndk_path in common.gypi; pointing it at
+# the Termux usr prefix satisfies the parser — no actual Android NDK needed.
+# This variable is silently ignored on macOS/Linux.
 log "Installing Node.js dependencies (better-sqlite3 will compile from source — this takes ~1-2 min)..."
+export GYP_DEFINES="android_ndk_path=/data/data/com.termux/files/usr"
 npm --prefix "$LOCAL_DIR" install
+unset GYP_DEFINES
 ok "npm install complete."
 
 # ── 2a. Native module smoke test ──────────────────────────────────────────────
@@ -89,6 +95,15 @@ else
   else
     warn ".env.example not found. Create $ENV_FILE manually."
   fi
+fi
+
+# ── 4a. DB_PATH sanity check ──────────────────────────────────────────────────
+# /tmp does not exist on Android/Termux. Detect it in the .env and replace with
+# a path inside the project data directory, which setup already created.
+if [[ -f "$ENV_FILE" ]] && grep -q 'DB_PATH=/tmp/' "$ENV_FILE"; then
+  warn "DB_PATH points to /tmp which does not exist on Termux. Replacing with ./data/pos.db"
+  sed -i 's|DB_PATH=/tmp/[^ ]*|DB_PATH=./data/pos.db|g' "$ENV_FILE"
+  ok "DB_PATH updated to ./data/pos.db in $ENV_FILE"
 fi
 
 # ── 5. Termux:Boot hook ────────────────────────────────────────────────────────

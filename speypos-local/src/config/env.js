@@ -31,6 +31,19 @@ function parseBooleanEnv(name, fallback) {
 
 const VALID_RUNTIME_PROFILES = ['default', 'android-termux', 'development'];
 
+function normalizeDbPath(rawDbPath, runtimeProfile) {
+  // Termux does not provide /tmp in the same way as desktop Linux/macOS.
+  // Guard against legacy configs so startup remains resilient on Android.
+  if (runtimeProfile === 'android-termux' && /^\/tmp(\/|$)/.test(rawDbPath)) {
+    console.warn(
+      '[env] DB_PATH points to /tmp on android-termux; using ./data/pos.db instead.'
+    );
+    return './data/pos.db';
+  }
+
+  return rawDbPath;
+}
+
 function shouldForceConsolePrinter() {
   const runtimeProfile = process.env.RUNTIME_PROFILE || 'default';
   const fallback = runtimeProfile === 'android-termux';
@@ -69,10 +82,11 @@ if (!VALID_RUNTIME_PROFILES.includes(runtimeProfile)) {
 }
 
 const forceConsolePrinter = shouldForceConsolePrinter();
+const dbPath = normalizeDbPath(process.env.DB_PATH, runtimeProfile);
 
 export const env = {
   port: process.env.PORT,
-  dbPath: process.env.DB_PATH,
+  dbPath,
   runtimeProfile,
   forceConsolePrinter,
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,

@@ -64,11 +64,28 @@ async function testReadmeDbPathMatchesEnvExample() {
   );
 }
 
+async function testEnvGuardsTermuxTmpDbPath() {
+  const envSrc = await readFile(path.join(localRoot, 'src/config/env.js'), 'utf8');
+  assert.ok(
+    envSrc.includes('normalizeDbPath'),
+    'env.js must normalize DB_PATH for runtime-specific compatibility'
+  );
+  assert.ok(
+    envSrc.includes('android-termux') && envSrc.includes('/tmp'),
+    'env.js must guard against /tmp DB_PATH on android-termux'
+  );
+  assert.ok(
+    envSrc.includes('./data/pos.db'),
+    'env.js must fall back to ./data/pos.db for invalid Termux /tmp DB_PATH'
+  );
+}
+
 async function run() {
   await testSyncQueueDecoupledFromDbDir();
   await testReceiptsPathExists();
   await testLoggerHasProfileAwareRetention();
   await testReadmeDbPathMatchesEnvExample();
+  await testEnvGuardsTermuxTmpDbPath();
   console.log('Refactor 7 integration checks passed.');
 }
 

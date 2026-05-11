@@ -67,8 +67,8 @@ while true; do
 
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] launching backend" >> "$LOG_FILE"
   (
-    cd "$ROOT_DIR" || exit 1
-    RUNTIME_PROFILE=android-termux FORCE_CONSOLE_PRINTER=true npm --prefix speypos-local start
+    cd "$ROOT_DIR/speypos-local" || exit 1
+    RUNTIME_PROFILE=android-termux FORCE_CONSOLE_PRINTER=true node src/index.js
   ) >> "$LOG_FILE" 2>&1 &
   app_pid=$!
   echo "$app_pid" > "$APP_PID_FILE"

@@ -12,7 +12,7 @@ const configuredBackendUrl = import.meta.env.VITE_BACKEND_URL
 const runtimeOrigin =
   typeof window !== 'undefined' ? trimTrailingSlashes(window.location.origin) : null;
 
-const devFallbackBackendUrl = 'http://localhost:8080';
+const devFallbackBackendUrl = 'http://localhost:3000';
 
 const BACKEND_URL =
   configuredBackendUrl || (import.meta.env.DEV ? devFallbackBackendUrl : runtimeOrigin || devFallbackBackendUrl);

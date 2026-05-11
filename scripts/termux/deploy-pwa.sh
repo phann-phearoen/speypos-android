@@ -7,6 +7,7 @@ LOCAL_DIR="$ROOT_DIR/speypos-local"
 PUBLIC_DIR="$LOCAL_DIR/public"
 DIST_DIR="$PWA_DIR/dist"
 DIST_INDEX="$DIST_DIR/index.html"
+INSTALL_STAMP="$PWA_DIR/node_modules/.speypos-install-stamp"
 
 log() { echo "[deploy-pwa] $*"; }
 ok() { echo "[deploy-pwa] ✓ $*"; }
@@ -26,9 +27,19 @@ fi
 
 mkdir -p "$PUBLIC_DIR"
 
+need_install=0
 if [[ ! -d "$PWA_DIR/node_modules" ]]; then
+  need_install=1
+elif [[ ! -f "$PWA_DIR/node_modules/@vitejs/plugin-react/package.json" ]]; then
+  need_install=1
+elif [[ ! -f "$INSTALL_STAMP" || "$PWA_DIR/package.json" -nt "$INSTALL_STAMP" ]]; then
+  need_install=1
+fi
+
+if (( need_install == 1 )); then
   log "Installing PWA dependencies..."
   npm --prefix "$PWA_DIR" install
+  touch "$INSTALL_STAMP"
   ok "PWA dependencies installed."
 fi
 

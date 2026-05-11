@@ -7,6 +7,7 @@ WATCHDOG_PID_FILE="$RUNTIME_DIR/watchdog.pid"
 APP_PID_FILE="$RUNTIME_DIR/app.pid"
 STOP_FILE="$RUNTIME_DIR/stop.flag"
 LOG_FILE="$RUNTIME_DIR/watchdog.log"
+LOCAL_PACKAGE_JSON="$ROOT_DIR/speypos-local/package.json"
 
 # Source .env to read PORT for health check URL (fallback: 8080)
 ENV_FILE="$ROOT_DIR/speypos-local/.env"
@@ -37,6 +38,12 @@ fi
 
 echo $$ > "$WATCHDOG_PID_FILE"
 rm -f "$STOP_FILE"
+
+if [[ ! -f "$LOCAL_PACKAGE_JSON" ]]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] fatal: missing $LOCAL_PACKAGE_JSON" >> "$LOG_FILE"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] hint: repository clone is incomplete; ensure speypos-local/package.json is tracked and present" >> "$LOG_FILE"
+  exit 1
+fi
 
 if (( HAS_CURL == 0 )); then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] warning: curl not found; health polling disabled" >> "$LOG_FILE"

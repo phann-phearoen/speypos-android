@@ -13,6 +13,13 @@ warn(){ echo "[setup] ! $*"; }
 log "SpeyPOS Termux setup starting..."
 log "Root: $ROOT_DIR"
 
+if [[ ! -f "$LOCAL_DIR/package.json" ]]; then
+  warn "Missing $LOCAL_DIR/package.json"
+  warn "The repository is incomplete (package manifests may be ignored by .gitignore)."
+  warn "Fix git tracking and re-clone before running setup."
+  exit 1
+fi
+
 # ── 1. Required Termux packages ───────────────────────────────────────────────
 # NOTE: better-sqlite3 prebuilts are compiled for glibc; Termux uses Android
 # Bionic libc, so the prebuilt binary will never load here. npm install will

@@ -146,7 +146,7 @@ Actions:
 |---|---|---|
 | Android runtime | Android 10+ (Termux) | Android 12+ recommended |
 | CPU | ARM64 (aarch64) | 64-bit devices strongly recommended |
-| Backend runtime | Node.js 22.x | Enforced via `engines` in package.json |
+| Backend runtime | Node.js 22.x or 24.x | Enforced via engines range in package.json |
 | Printer protocol | RAW TCP 9100 | Primary supported production path |
 | Printer fallback | Console mode | Safe degraded mode when LAN printer is unavailable |
 | Cloud sync | Optional | POS remains functional offline |

@@ -4,6 +4,11 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+const isTermuxRuntime =
+  process.env.SPEYPOS_TERMUX === "1" ||
+  Boolean(process.env.TERMUX_VERSION) ||
+  Boolean(process.env.ANDROID_ROOT);
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -45,6 +50,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // Workbox+terser can exit early on some Termux/Android builds.
+        // Development mode avoids aggressive SW minification and is stable there.
+        mode: isTermuxRuntime ? "development" : "production",
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {

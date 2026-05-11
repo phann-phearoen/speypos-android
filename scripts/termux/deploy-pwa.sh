@@ -56,7 +56,7 @@ fi
 
 if (( need_build == 1 )); then
   log "Building PWA assets..."
-  npm --prefix "$PWA_DIR" run build
+  SPEYPOS_TERMUX=1 npm --prefix "$PWA_DIR" run build
   ok "PWA build complete."
 else
   log "PWA build is up-to-date; skipping build."

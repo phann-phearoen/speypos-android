@@ -1,6 +1,7 @@
 {
   "scripts": {
     "termux:setup": "bash scripts/termux/setup.sh",
+    "termux:deploy": "bash scripts/termux/deploy-pwa.sh",
     "termux:boot": "bash scripts/termux/boot.sh",
     "termux:start": "bash scripts/termux/start.sh",
     "termux:stop": "bash scripts/termux/stop.sh",

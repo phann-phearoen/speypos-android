@@ -32,7 +32,7 @@ async function testSetupShExists() {
 }
 
 async function testAllScriptsHaveShebang() {
-  const scripts = ['boot.sh', 'start.sh', 'stop.sh', 'restart.sh', 'status.sh', 'logs.sh', 'watchdog.sh', 'setup.sh'];
+  const scripts = ['boot.sh', 'start.sh', 'stop.sh', 'restart.sh', 'status.sh', 'logs.sh', 'watchdog.sh', 'setup.sh', 'deploy-pwa.sh'];
   for (const name of scripts) {
     const src = await readScript(name);
     assert.ok(
@@ -43,7 +43,7 @@ async function testAllScriptsHaveShebang() {
 }
 
 async function testAllScriptsHaveStrictFlags() {
-  const scripts = ['boot.sh', 'start.sh', 'stop.sh', 'restart.sh', 'status.sh', 'logs.sh', 'watchdog.sh', 'setup.sh'];
+  const scripts = ['boot.sh', 'start.sh', 'stop.sh', 'restart.sh', 'status.sh', 'logs.sh', 'watchdog.sh', 'setup.sh', 'deploy-pwa.sh'];
   for (const name of scripts) {
     const src = await readScript(name);
     assert.ok(
@@ -95,7 +95,16 @@ async function testTermuxSetupInRootPackageJson() {
   const src = await readFile(path.join(repoRoot, 'package.json'), 'utf8');
   const pkg = JSON.parse(src);
   assert.ok(pkg.scripts?.['termux:setup'], 'root package.json must have termux:setup script');
+  assert.ok(pkg.scripts?.['termux:deploy'], 'root package.json must have termux:deploy script');
   assert.ok(pkg.scripts?.['termux:boot'], 'root package.json must have termux:boot script');
+}
+
+async function testStartScriptDeploysPwa() {
+  const src = await readScript('start.sh');
+  assert.ok(
+    src.includes('deploy-pwa.sh'),
+    'start.sh must deploy frontend assets before launching the watchdog'
+  );
 }
 
 async function testStartAndroidScript() {
@@ -114,6 +123,7 @@ async function run() {
   await testAllScriptsHaveStrictFlags();
   await testWatchdogCurlGuard();
   await testWatchdogPortSourced();
+  await testStartScriptDeploysPwa();
   await testNodevmonIgnoresSqlite();
   await testTermuxSetupInRootPackageJson();
   await testStartAndroidScript();

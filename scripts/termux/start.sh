@@ -14,6 +14,8 @@ if [[ -f "$WATCHDOG_PID_FILE" ]] && kill -0 "$(cat "$WATCHDOG_PID_FILE")" 2>/dev
   exit 0
 fi
 
+"$ROOT_DIR/scripts/termux/deploy-pwa.sh"
+
 nohup "$ROOT_DIR/scripts/termux/watchdog.sh" >/dev/null 2>&1 &
 
 # Poll up to 2 s for watchdog to write its PID file (confirms it actually started)

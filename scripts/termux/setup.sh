@@ -128,6 +128,7 @@ chmod +x "$ROOT_DIR/scripts/termux/restart.sh"
 chmod +x "$ROOT_DIR/scripts/termux/status.sh"
 chmod +x "$ROOT_DIR/scripts/termux/logs.sh"
 chmod +x "$ROOT_DIR/scripts/termux/watchdog.sh"
+chmod +x "$ROOT_DIR/scripts/termux/deploy-pwa.sh"
 ok "All scripts marked executable."
 
 # ── 6. Summary ────────────────────────────────────────────────────────────────

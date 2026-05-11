@@ -46,6 +46,7 @@ SYNC_MINI_BATCH_SIZE=20
 All commands run from workspace root:
 
 ```sh
+npm run termux:deploy
 npm run termux:start
 npm run termux:status
 npm run termux:logs
@@ -55,11 +56,13 @@ npm run termux:stop
 
 Expected behavior:
 
-1. `termux:start` launches the watchdog and backend.
-2. `termux:status` reports current watchdog/backend PID state.
-3. `termux:logs` tails runtime diagnostics.
-4. `termux:restart` performs graceful stop/start.
-5. `termux:stop` signals shutdown and waits for watchdog exit.
+1. `termux:deploy` builds/syncs PWA assets into `speypos-local/public`.
+2. `termux:start` auto-runs the same deploy step, then launches watchdog/backend.
+3. Open `http://localhost:8080` on the device browser to use the app.
+4. `termux:status` reports current watchdog/backend PID state.
+5. `termux:logs` tails runtime diagnostics.
+6. `termux:restart` performs graceful stop/start.
+7. `termux:stop` signals shutdown and waits for watchdog exit.
 
 ### Printer Operations (RAW TCP 9100)
 

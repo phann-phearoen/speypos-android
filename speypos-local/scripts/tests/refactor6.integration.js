@@ -53,11 +53,20 @@ async function testSetupShHasNativeSmokeTest() {
   );
 }
 
+async function testNpmrcHasAndroidNdkPath() {
+  const npmrc = await readFile(path.join(localRoot, '.npmrc'), 'utf8');
+  assert.ok(
+    npmrc.includes('android_ndk_path=/data/data/com.termux/files/usr'),
+    '.npmrc must define android_ndk_path for direct Termux npm install compatibility'
+  );
+}
+
 async function run() {
   await testEnginesField();
   await testBetterSqlite3ExactPin();
   await testSetupShHasBuildTools();
   await testSetupShHasNativeSmokeTest();
+  await testNpmrcHasAndroidNdkPath();
   console.log('Refactor 6 integration checks passed.');
 }
 

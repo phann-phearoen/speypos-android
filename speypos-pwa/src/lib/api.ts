@@ -1,8 +1,23 @@
 // API Client for SpeyPOS Local Backend
 import type { PendingActionsStatus, RuntimeStatus } from '@/types/pos';
 
-const API_BASE = 'http://localhost:8080/api';
-const BACKEND_URL = 'http://localhost:8080';
+function trimTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+const configuredBackendUrl = import.meta.env.VITE_BACKEND_URL
+  ? trimTrailingSlashes(import.meta.env.VITE_BACKEND_URL)
+  : null;
+
+const runtimeOrigin =
+  typeof window !== 'undefined' ? trimTrailingSlashes(window.location.origin) : null;
+
+const devFallbackBackendUrl = 'http://localhost:8080';
+
+const BACKEND_URL =
+  configuredBackendUrl || (import.meta.env.DEV ? devFallbackBackendUrl : runtimeOrigin || devFallbackBackendUrl);
+
+const API_BASE = `${BACKEND_URL}/api`;
 
 interface ApiResponse<T> {
   data: T | null;

@@ -146,7 +146,7 @@ Actions:
 |---|---|---|
 | Android runtime | Android 10+ (Termux) | Android 12+ recommended |
 | CPU | ARM64 (aarch64) | 64-bit devices strongly recommended |
-| Backend runtime | Node.js 22.x (Termux) | Use `nodejs-lts`; Node 24 currently fails native build for better-sqlite3 on Android |
+| Backend runtime | Node.js 22.x – 25.x (Termux) | Use `pkg install nodejs`; workspace `.npmrc` pre-defines `android_ndk_path` so native build works on Node 24/25 |
 | Printer protocol | RAW TCP 9100 | Primary supported production path |
 | Printer fallback | Console mode | Safe degraded mode when LAN printer is unavailable |
 | Cloud sync | Optional | POS remains functional offline |

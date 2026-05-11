@@ -29,20 +29,21 @@ fi
 # On Termux, Node 24 currently fails to compile better-sqlite3 with
 # `gyp: Undefined variable android_ndk_path in binding.gyp`.
 # Install nodejs-lts (Node 22) to avoid this upstream toolchain issue.
-log "Installing required packages (nodejs-lts, curl, build tools)..."
+# Install nodejs (or nodejs-lts if available). Node 24 now works with better-sqlite3
+# because the workspace .npmrc pre-defines android_ndk_path for gyp.
+log "Installing required packages (nodejs, curl, build tools)..."
 if command -v pkg >/dev/null 2>&1; then
-  pkg install -y nodejs-lts curl python make clang pkg-config
+  pkg install -y nodejs curl python make clang pkg-config
   ok "Packages installed."
 else
   warn "'pkg' not found. Are you running this inside Termux?"
-  warn "Install nodejs-lts, curl, python, make, clang, pkg-config manually then re-run setup."
+  warn "Install nodejs, curl, python, make, clang, pkg-config manually then re-run setup."
 fi
 
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
-if (( NODE_MAJOR < 22 || NODE_MAJOR >= 24 )); then
-  warn "Detected Node.js $(node -v 2>/dev/null || echo unknown)."
-  warn "For Termux, use Node 22 (nodejs-lts) because better-sqlite3 native build fails on Node 24."
-  warn "Run: pkg uninstall -y nodejs && pkg install -y nodejs-lts"
+if (( NODE_MAJOR < 22 || NODE_MAJOR >= 26 )); then
+  warn "Detected Node.js $(node -v 2>/dev/null || echo unknown). Supported range: 22.x – 25.x."
+  warn "Run: pkg install -y nodejs-lts"
   exit 1
 fi
 

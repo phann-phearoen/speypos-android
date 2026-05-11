@@ -14,7 +14,7 @@ if [[ -f "$WATCHDOG_PID_FILE" ]] && kill -0 "$(cat "$WATCHDOG_PID_FILE")" 2>/dev
   exit 0
 fi
 
-"$ROOT_DIR/scripts/termux/deploy-pwa.sh"
+bash "$ROOT_DIR/scripts/termux/deploy-pwa.sh"
 
 nohup "$ROOT_DIR/scripts/termux/watchdog.sh" >/dev/null 2>&1 &
 

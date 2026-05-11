@@ -33,7 +33,7 @@ export function OrderPanel({
   const { t } = useTranslation();
 
   return (
-    <aside className="w-[450px] bg-pos-panel border-l border-border flex flex-col flex-shrink-0">
+    <aside className="w-[400px] bg-pos-panel border-l border-border flex flex-col flex-shrink-0">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">

@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { ArrowLeft, Check, Delete, Ban } from 'lucide-react';
 import { Header } from '@/components/pos/Header';
+import { ShiftClosePreviewModal } from '@/components/pos/ShiftClosePreviewModal';
 import { useShift } from '@/contexts/ShiftContext';
 import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
 import { orderApi } from '@/lib/api';
-import { toast } from '@/hooks/use-toast';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
 import {
@@ -44,16 +44,16 @@ export default function PaymentPage() {
   const { format, normalizeInput, toDisplayValue, symbol, getMinorUnit, generateQuickAmounts } = useCurrency();
   const { t } = useTranslation();
   const { updateToPaying, updateToCompleted } = useDisplaySession();
+  const [showClosePreview, setShowClosePreview] = useState(false);
 
-  const handleCloseShift = async () => {
+  const handleCloseShift = () => {
+    setShowClosePreview(true);
+  };
+
+  const handleConfirmCloseShift = async () => {
     await refreshPendingActions();
-    if (currentShift) {
-      toast({
-        title: 'Shift Closed',
-        description: `Shift ended for ${currentStaff?.name}`,
-      });
-    }
     await closeShift();
+    setShowClosePreview(false);
   };
 
   // Get order data from router state
@@ -483,6 +483,14 @@ export default function PaymentPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShiftClosePreviewModal
+        open={showClosePreview}
+        onClose={() => setShowClosePreview(false)}
+        onConfirm={handleConfirmCloseShift}
+        shiftId={currentShift?.id || ''}
+        staffName={currentStaff?.name || ''}
+      />
     </div>
   );
 }

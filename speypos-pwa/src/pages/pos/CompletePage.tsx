@@ -2,12 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { CheckCircle, Printer, Plus, Ban } from 'lucide-react';
 import { Header } from '@/components/pos/Header';
+import { ShiftClosePreviewModal } from '@/components/pos/ShiftClosePreviewModal';
 import { useShift } from '@/contexts/ShiftContext';
 import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
 import { useCurrency } from '@/lib/currency';
-import { toast } from '@/hooks/use-toast';
 import { orderApi } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n';
 
@@ -35,16 +35,16 @@ export default function CompletePage() {
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [orderId, setOrderId] = useState(completedOrderId);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showClosePreview, setShowClosePreview] = useState(false);
 
-  const handleCloseShift = async () => {
+  const handleCloseShift = () => {
+    setShowClosePreview(true);
+  };
+
+  const handleConfirmCloseShift = async () => {
     await refreshPendingActions();
-    if (currentShift) {
-      toast({
-        title: 'Shift Closed',
-        description: `Shift ended for ${currentStaff?.name}`,
-      });
-    }
     await closeShift();
+    setShowClosePreview(false);
   };
 
   const [showContent, setShowContent] = useState(false);
@@ -177,6 +177,14 @@ export default function CompletePage() {
           </div>
         </div>
       </div>
+
+      <ShiftClosePreviewModal
+        open={showClosePreview}
+        onClose={() => setShowClosePreview(false)}
+        onConfirm={handleConfirmCloseShift}
+        shiftId={currentShift?.id || ''}
+        staffName={currentStaff?.name || ''}
+      />
     </div>
   );
 }

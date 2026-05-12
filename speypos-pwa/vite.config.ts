@@ -13,7 +13,7 @@ const isTermuxRuntime =
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8000,
+    port: 8080,
   },
   plugins: [
     react(),

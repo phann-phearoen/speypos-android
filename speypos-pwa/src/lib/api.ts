@@ -24,6 +24,10 @@ interface ApiResponse<T> {
   error: string | null;
 }
 
+interface RequestOptions extends RequestInit {
+  timeoutMs?: number;
+}
+
 interface UploadResponse {
   message: string;
   url: string;
@@ -53,11 +57,33 @@ function getStoredUserRole(): string | null {
 
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
+  const timeoutMs =
+    options.timeoutMs ?? Number.parseInt(import.meta.env.VITE_API_TIMEOUT_MS || '10000', 10);
+  const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10000;
+
+  const controller = new AbortController();
+  const externalSignal = options.signal;
+  let externalAbortHandler: (() => void) | null = null;
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalAbortHandler = () => controller.abort();
+      externalSignal.addEventListener('abort', externalAbortHandler, { once: true });
+    }
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    controller.abort();
+  }, safeTimeoutMs);
+
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -76,11 +102,23 @@ async function request<T>(
     const data = await response.json();
     return { data, error: null };
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return {
+        data: null,
+        error: `Request timed out after ${safeTimeoutMs}ms`,
+      };
+    }
+
     // Network error or backend unavailable
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Network error',
     };
+  } finally {
+    clearTimeout(timeoutId);
+    if (externalSignal && externalAbortHandler) {
+      externalSignal.removeEventListener('abort', externalAbortHandler);
+    }
   }
 }
 

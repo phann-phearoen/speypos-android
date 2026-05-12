@@ -20,7 +20,20 @@ function getRuntimeConfig(): SpeyposRuntimeConfig {
     return {};
   }
 
-  return window.__SPEYPOS_RUNTIME__ ?? {};
+  const runtimeConfig: SpeyposRuntimeConfig = window.__SPEYPOS_RUNTIME__ ?? {};
+  const searchParams = new URLSearchParams(window.location.search);
+
+  return {
+    ...runtimeConfig,
+    backendUrl: runtimeConfig.backendUrl || searchParams.get('backendUrl') || undefined,
+    apiBaseUrl: runtimeConfig.apiBaseUrl || searchParams.get('apiBaseUrl') || undefined,
+    appBaseUrl: runtimeConfig.appBaseUrl || searchParams.get('appBaseUrl') || undefined,
+    disableServiceWorker:
+      runtimeConfig.disableServiceWorker ||
+      searchParams.get('disableServiceWorker') === '1' ||
+      searchParams.get('disableServiceWorker') === 'true' ||
+      undefined,
+  };
 }
 
 export function isAndroidWebViewBuild(): boolean {

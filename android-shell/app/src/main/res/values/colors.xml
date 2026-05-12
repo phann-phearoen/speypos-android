@@ -1,0 +1,5 @@
+<resources>
+  <color name="shell_background">#F5F0EB</color>
+  <color name="shell_foreground">#1C1C1C</color>
+  <color name="shell_muted_foreground">#5F5A55</color>
+</resources>

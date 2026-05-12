@@ -1,0 +1,7 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+  <style name="Theme.SpeyposShell" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <item name="android:statusBarColor">@color/shell_background</item>
+    <item name="android:navigationBarColor">@color/shell_background</item>
+    <item name="android:windowFullscreen">true</item>
+  </style>
+</resources>

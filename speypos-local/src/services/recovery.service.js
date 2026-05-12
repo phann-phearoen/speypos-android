@@ -4,8 +4,37 @@ import * as printerService from '../printer/printerService.js';
 import * as telegramService from './telegram.service.js';
 import { logger } from '../utils/logger.js';
 import { serializeOrder } from '../serializers/order.serializer.js';
-import { ORDER_STATUS } from '../constants/order.constants.js';
 import { runRetryUnprintedOrders } from './retry-unprinted.service.js';
+
+function parseInteger(value, fallback, { min, max }) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function parseOrderCreatedAtMs(order) {
+  const raw = order?.created_at ?? order?.createdAt ?? null;
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+
+  const asNumber = Number(raw);
+  if (!Number.isFinite(asNumber)) {
+    return null;
+  }
+
+  // Most rows store unixepoch seconds; convert to ms while remaining safe for ms values.
+  return asNumber < 1_000_000_000_000 ? asNumber * 1000 : asNumber;
+}
 
 /**
  * Scans for all orders that have not been successfully printed.
@@ -63,14 +92,69 @@ export function getUnreportedShifts() {
  * Processes sequentially and stops on the first failure.
  * @returns {Promise<{succeeded: number, failed: number, total: number}>}
  */
-export async function retryUnprintedOrders() {
+export function getPrinterPendingMetrics() {
+  const { count, records } = getUnprintedOrders();
+  const nowMs = Date.now();
+
+  let oldestPendingAt = null;
+  let oldestPendingAgeMinutes = null;
+
+  for (const order of records) {
+    const createdAtMs = parseOrderCreatedAtMs(order);
+    if (!createdAtMs) {
+      continue;
+    }
+
+    if (!oldestPendingAt || createdAtMs < Date.parse(oldestPendingAt)) {
+      oldestPendingAt = new Date(createdAtMs).toISOString();
+      oldestPendingAgeMinutes = Math.max(0, Math.floor((nowMs - createdAtMs) / 60000));
+    }
+  }
+
+  const staleThresholdMinutes = parseInteger(
+    process.env.PRINT_PENDING_STALE_MINUTES,
+    10,
+    { min: 1, max: 1440 }
+  );
+
+  const staleOrderCount = records.reduce((acc, order) => {
+    const createdAtMs = parseOrderCreatedAtMs(order);
+    if (!createdAtMs) {
+      return acc;
+    }
+
+    const ageMinutes = Math.floor((nowMs - createdAtMs) / 60000);
+    return ageMinutes >= staleThresholdMinutes ? acc + 1 : acc;
+  }, 0);
+
+  return {
+    pendingCount: count,
+    staleOrderCount,
+    staleThresholdMinutes,
+    oldestPendingAt,
+    oldestPendingAgeMinutes,
+  };
+}
+
+export async function retryUnprintedOrders({ context = 'manual' } = {}) {
   const { records } = getUnprintedOrders();
+
+  const maxAttemptsPerRun = parseInteger(
+    process.env.PRINT_RETRY_MAX_ATTEMPTS_PER_RUN,
+    30,
+    { min: 1, max: 500 }
+  );
+  const stopOnFirstError = parseBoolean(process.env.PRINT_RETRY_STOP_ON_ERROR, true);
+
   return runRetryUnprintedOrders({
     records,
     getOrderById: orderRepo.getOrderById,
     serializeOrder,
     printReceipt: printerService.printReceipt,
     logger,
+    maxAttempts: maxAttemptsPerRun,
+    stopOnFirstError,
+    context,
   });
 }
 

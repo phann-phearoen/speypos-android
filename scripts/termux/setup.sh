@@ -31,13 +31,13 @@ fi
 # Install nodejs-lts (Node 22) to avoid this upstream toolchain issue.
 # Install nodejs (or nodejs-lts if available). Node 24 now works with better-sqlite3
 # because the workspace .npmrc pre-defines android_ndk_path for gyp.
-log "Installing required packages (nodejs, curl, build tools)..."
+log "Installing required packages (nodejs, curl, termux-api, build tools)..."
 if command -v pkg >/dev/null 2>&1; then
-  pkg install -y nodejs curl python make clang pkg-config
+  pkg install -y nodejs curl termux-api python make clang pkg-config
   ok "Packages installed."
 else
   warn "'pkg' not found. Are you running this inside Termux?"
-  warn "Install nodejs, curl, python, make, clang, pkg-config manually then re-run setup."
+  warn "Install nodejs, curl, termux-api, python, make, clang, pkg-config manually then re-run setup."
 fi
 
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
@@ -129,11 +129,15 @@ chmod +x "$ROOT_DIR/scripts/termux/status.sh"
 chmod +x "$ROOT_DIR/scripts/termux/logs.sh"
 chmod +x "$ROOT_DIR/scripts/termux/watchdog.sh"
 chmod +x "$ROOT_DIR/scripts/termux/deploy-pwa.sh"
+chmod +x "$ROOT_DIR/scripts/termux/wake-lock.sh"
+chmod +x "$ROOT_DIR/scripts/termux/shift-open.sh"
+chmod +x "$ROOT_DIR/scripts/termux/shift-close.sh"
 ok "All scripts marked executable."
 
 # ── 6. Summary ────────────────────────────────────────────────────────────────
 echo ""
 echo "Setup complete. Next steps:"
 echo "  1. Edit $ENV_FILE with your PORT, DB_PATH, and other settings."
-echo "  2. Run: bash $ROOT_DIR/scripts/termux/start.sh"
-echo "  3. Install Termux:Boot app from F-Droid to enable auto-start on device boot."
+echo "  2. Install Termux:Boot and Termux:API apps from F-Droid."
+echo "  3. Disable battery optimization for Termux, Termux:Boot, and Termux:API."
+echo "  4. Run: bash $ROOT_DIR/scripts/termux/shift-open.sh"

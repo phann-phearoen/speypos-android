@@ -39,6 +39,9 @@ CORS_ORIGIN=http://localhost:8000
 SYNC_MINI_BATCH_SIZE=20
 # CLOUD_FETCH_TIMEOUT_MS=15000
 # TELEGRAM_FETCH_TIMEOUT_MS=8000
+# PRINT_RETRY_MAX_ATTEMPTS_PER_RUN=30
+# PRINT_RETRY_STOP_ON_ERROR=true
+# PRINT_PENDING_STALE_MINUTES=10
 ```
 
 ### Daily Operations
@@ -47,22 +50,44 @@ All commands run from workspace root:
 
 ```sh
 npm run termux:deploy
+npm run termux:shift-open
 npm run termux:start
 npm run termux:status
 npm run termux:logs
 npm run termux:restart
+npm run termux:shift-close
 npm run termux:stop
 ```
 
 Expected behavior:
 
 1. `termux:deploy` builds/syncs PWA assets into `speypos-local/public`.
-2. `termux:start` auto-runs the same deploy step, then launches watchdog/backend.
-3. Open `http://localhost:8080` on the device browser to use the app.
-4. `termux:status` reports current watchdog/backend PID state.
+2. `termux:shift-open` acquires wake lock (when Termux:API is available), starts services, and prints status.
+3. `termux:start` auto-runs the same deploy step, then launches watchdog/backend.
+4. `termux:status` reports watchdog/backend PID state and local wake-lock state.
 5. `termux:logs` tails runtime diagnostics.
 6. `termux:restart` performs graceful stop/start.
-7. `termux:stop` signals shutdown and waits for watchdog exit.
+7. `termux:shift-close` gracefully stops services, releases wake lock, and prints status.
+8. `termux:stop` signals shutdown and waits for watchdog exit.
+
+Wake lock notes:
+
+1. `termux:start` defaults to `WAKE_LOCK_MODE=auto` and will continue if lock command is unavailable.
+2. Use `WAKE_LOCK_MODE=required npm run termux:start` to fail fast when wake lock cannot be acquired.
+3. Use `WAKE_LOCK_MODE=off npm run termux:start` to skip wake-lock handling entirely.
+
+### Doze Hardening Checklist
+
+Apply these on each production device:
+
+1. Install Termux, Termux:Boot, and Termux:API from F-Droid.
+2. Disable battery optimization for all three apps.
+3. Enable Android developer option "Stay awake while charging" for fixed POS stations.
+4. Keep tablet/phone connected to charger during operating hours.
+5. Run `npm run termux:shift-open` at shift start and `npm run termux:shift-close` at shift end.
+6. Verify `npm run termux:status` reports `wake-lock: locked` during shift.
+7. After lock/unlock or 30+ minutes idle, verify POS still responds at `http://localhost:8080`.
+8. Reboot test monthly: ensure service auto-recovers via Termux:Boot.
 
 ### Printer Operations (RAW TCP 9100)
 
@@ -124,10 +149,10 @@ Symptoms:
 
 Actions:
 
-1. Ensure Termux:Boot app is installed and battery optimizations are disabled for Termux/Termux:Boot.
+1. Ensure Termux:Boot and Termux:API apps are installed and battery optimizations are disabled for Termux/Termux:Boot/Termux:API.
 2. Re-run `npm run termux:setup` to reinstall boot hook if needed.
 3. Inspect `npm run termux:logs` for startup failure details.
-4. Start manually with `npm run termux:start` and verify with `npm run termux:status`.
+4. Start manually with `npm run termux:shift-open` and verify with `npm run termux:status`.
 
 #### Startup failures
 

@@ -1,8 +1,33 @@
 import fs from 'fs/promises';
+import path from 'path';
 import { paths } from '../config/paths.js';
 import { logger } from '../utils/logger.js';
+import { getRuntimeStatus, setDegradedReasons } from '../system/runtimeStatus.js';
 
 const queuePath = paths.syncQueue;
+const queueDir = path.dirname(queuePath);
+const QUEUE_DEGRADED_REASONS = [
+  'sync_queue_read_failed',
+  'sync_queue_parse_failed',
+  'sync_queue_write_failed',
+];
+
+function setQueueReason(reason) {
+  const runtime = getRuntimeStatus();
+  const nextReasons = [
+    ...runtime.degradedReasons.filter((value) => !QUEUE_DEGRADED_REASONS.includes(value)),
+    reason,
+  ];
+  setDegradedReasons(nextReasons, 'sync_queue');
+}
+
+function clearQueueReasons() {
+  const runtime = getRuntimeStatus();
+  const nextReasons = runtime.degradedReasons.filter(
+    (value) => !QUEUE_DEGRADED_REASONS.includes(value)
+  );
+  setDegradedReasons(nextReasons, 'sync_queue');
+}
 
 /**
  * Reads the sync queue from the filesystem.
@@ -12,16 +37,41 @@ export async function readQueue() {
   try {
     await fs.access(queuePath);
     const data = await fs.readFile(queuePath, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) {
+      throw new Error('Sync queue file is not an array.');
+    }
+
+    clearQueueReasons();
+    return parsed;
   } catch (error) {
-    // If the file doesn't exist, return an empty queue
     if (error.code === 'ENOENT') {
       return [];
     }
-    logger.error('Failed to read sync queue.', { error: error.message });
-    // If we can't read the file for other reasons, it's a critical error.
-    // For now, we return an empty array to avoid crashing, but this needs monitoring.
-    return [];
+
+    if (error?.name === 'SyntaxError') {
+      const badPath = `${queuePath}.bad.${Date.now()}`;
+      try {
+        await fs.copyFile(queuePath, badPath);
+      } catch (copyError) {
+        logger.warn('Failed to snapshot corrupted sync queue file.', {
+          error: copyError.message,
+          path: badPath,
+        });
+      }
+
+      setQueueReason('sync_queue_parse_failed');
+      logger.error('Sync queue is corrupted and could not be parsed.', {
+        error: error.message,
+        path: queuePath,
+        snapshotPath: badPath,
+      });
+      throw error;
+    }
+
+    setQueueReason('sync_queue_read_failed');
+    logger.error('Failed to read sync queue.', { error: error.message, path: queuePath });
+    throw error;
   }
 }
 
@@ -30,11 +80,29 @@ export async function readQueue() {
  * @param {Array} queue - The queue to write.
  */
 export async function writeQueue(queue) {
+  let tmpPath;
   try {
-    await fs.writeFile(queuePath, JSON.stringify(queue, null, 2));
+    await fs.mkdir(queueDir, { recursive: true });
+    tmpPath = `${queuePath}.tmp-${process.pid}-${Date.now()}`;
+    const payload = `${JSON.stringify(queue, null, 2)}\n`;
+    const handle = await fs.open(tmpPath, 'w');
+
+    try {
+      await handle.writeFile(payload, 'utf-8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+
+    await fs.rename(tmpPath, queuePath);
+    clearQueueReasons();
   } catch (error) {
-    logger.error('Failed to write sync queue.', { error: error.message });
-    // This is a critical failure, as we might lose sync data.
-    // A real system might need a fallback or alert here.
+    if (tmpPath) {
+      await fs.rm(tmpPath, { force: true }).catch(() => {});
+    }
+
+    setQueueReason('sync_queue_write_failed');
+    logger.error('Failed to write sync queue.', { error: error.message, path: queuePath });
+    throw error;
   }
 }

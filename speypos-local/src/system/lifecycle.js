@@ -5,7 +5,7 @@ import { initializeStore, getStore } from '../services/store.service.js';
 import { initializeStoreTimezone } from '../services/time.service.js';
 import { logger } from '../utils/logger.js';
 import { runRecoveryChecks } from './watchdog.js';
-import { processSyncQueue } from '../sync/syncManager.js';
+import { startSyncQueueWorker, stopSyncQueueWorker } from '../sync/syncManager.js';
 import { setStartupPhase } from './runtimeStatus.js';
 
 /**
@@ -48,8 +48,8 @@ export async function initialize() {
   // 8. Start HTTP Server in the determined mode
   await startServer({ mode });
 
-  // 8b. Kick off cloud sync queue processing in the background
-  process.nextTick(processSyncQueue);
+  // 8b. Keep cloud sync queue processing running in the background
+  startSyncQueueWorker();
 
   setStartupPhase('ready');
   logger.info('System lifecycle: Initialization complete.');
@@ -65,7 +65,10 @@ export async function shutdown() {
   // 1. Stop HTTP Server (stops accepting new requests)
   await stopServer();
 
-  // 2. Close Database Connection
+  // 2. Stop queue worker before closing DB to avoid late background reads/writes.
+  stopSyncQueueWorker();
+
+  // 3. Close Database Connection
   closeDatabase();
 
   logger.info('System lifecycle: Shutdown complete.');

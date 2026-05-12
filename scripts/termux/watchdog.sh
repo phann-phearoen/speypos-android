@@ -17,6 +17,8 @@ fi
 PORT="${PORT:-8080}"
 
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${PORT}/api/health}"
+READINESS_URL="${READINESS_URL:-http://127.0.0.1:${PORT}/api/system/readiness}"
+HEALTH_CHECK_MODE="${HEALTH_CHECK_MODE:-dual}"
 
 # Check curl availability once at startup; degrade gracefully if absent
 HAS_CURL=0
@@ -28,6 +30,11 @@ HEALTH_FAIL_THRESHOLD="${HEALTH_FAIL_THRESHOLD:-3}"
 RESTART_BACKOFF_BASE="${RESTART_BACKOFF_BASE:-2}"
 RESTART_BACKOFF_MAX="${RESTART_BACKOFF_MAX:-20}"
 REBOOT_EXIT_CODE="${REBOOT_EXIT_CODE:-75}"
+
+if [[ "$HEALTH_CHECK_MODE" != "dual" && "$HEALTH_CHECK_MODE" != "liveness" && "$HEALTH_CHECK_MODE" != "readiness" ]]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] warning: invalid HEALTH_CHECK_MODE=$HEALTH_CHECK_MODE, falling back to dual" >> "$LOG_FILE"
+  HEALTH_CHECK_MODE="dual"
+fi
 
 mkdir -p "$RUNTIME_DIR"
 
@@ -49,7 +56,7 @@ if (( HAS_CURL == 0 )); then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] warning: curl not found; health polling disabled" >> "$LOG_FILE"
 fi
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] watchdog started (pid=$$, port=$PORT, health_url=$HEALTH_URL)" >> "$LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] watchdog started (pid=$$, port=$PORT, health_url=$HEALTH_URL, readiness_url=$READINESS_URL, health_check_mode=$HEALTH_CHECK_MODE)" >> "$LOG_FILE"
 
 cleanup() {
   rm -f "$WATCHDOG_PID_FILE"
@@ -58,6 +65,39 @@ cleanup() {
 trap cleanup EXIT
 
 restart_count=0
+
+check_backend_health() {
+  case "$HEALTH_CHECK_MODE" in
+    liveness)
+      curl -sf "$HEALTH_URL" >/dev/null 2>&1
+      return $?
+      ;;
+    readiness)
+      curl -sf "$READINESS_URL" >/dev/null 2>&1
+      return $?
+      ;;
+    dual)
+      if curl -sf "$READINESS_URL" >/dev/null 2>&1; then
+        if (( readiness_fallback_active == 1 )); then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] readiness recovered; leaving fallback mode" >> "$LOG_FILE"
+        fi
+        readiness_fallback_active=0
+        return 0
+      fi
+
+      if curl -sf "$HEALTH_URL" >/dev/null 2>&1; then
+        if (( readiness_fallback_active == 0 )); then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] readiness check failing; liveness fallback is healthy" >> "$LOG_FILE"
+        fi
+        readiness_fallback_active=1
+        return 0
+      fi
+
+      readiness_fallback_active=0
+      return 1
+      ;;
+  esac
+}
 
 while true; do
   if [[ -f "$STOP_FILE" ]]; then
@@ -74,6 +114,7 @@ while true; do
   echo "$app_pid" > "$APP_PID_FILE"
 
   health_failures=0
+  readiness_fallback_active=0
   while kill -0 "$app_pid" 2>/dev/null; do
     sleep "$HEALTH_INTERVAL"
 
@@ -85,7 +126,7 @@ while true; do
 
     if (( HAS_CURL == 0 )); then
       : # curl not available; skip health polling
-    elif curl -sf "$HEALTH_URL" >/dev/null 2>&1; then
+    elif check_backend_health; then
       health_failures=0
     else
       health_failures=$((health_failures + 1))

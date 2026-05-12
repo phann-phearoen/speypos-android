@@ -27,6 +27,7 @@ const router = Router();
  */
 router.get('/system/setup-status', systemController.getSetupStatus);
 router.get('/system/runtime-status', systemController.getRuntimeStatusSnapshot);
+router.get('/system/readiness', systemController.getReadinessStatus);
 
 /**
  * @swagger

@@ -5,6 +5,8 @@
     "termux:boot": "bash scripts/termux/boot.sh",
     "termux:start": "bash scripts/termux/start.sh",
     "termux:stop": "bash scripts/termux/stop.sh",
+    "termux:shift-open": "bash scripts/termux/shift-open.sh",
+    "termux:shift-close": "bash scripts/termux/shift-close.sh",
     "termux:status": "bash scripts/termux/status.sh",
     "termux:restart": "bash scripts/termux/restart.sh",
     "termux:logs": "bash scripts/termux/logs.sh"

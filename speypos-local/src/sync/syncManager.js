@@ -13,6 +13,63 @@ const JOB_TYPES = {
 };
 
 let isProcessing = false;
+let workerInterval = null;
+
+function parseIntegerEnv(name, fallback, { min, max }) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    logger.warn(`Invalid ${name}; using fallback ${fallback}.`, {
+      provided: raw,
+      min,
+      max,
+    });
+    return fallback;
+  }
+
+  return parsed;
+}
+
+const SYNC_RETRY_BASE_MS = parseIntegerEnv('SYNC_RETRY_BASE_MS', 5000, {
+  min: 1000,
+  max: 300000,
+});
+const SYNC_RETRY_MAX_MS = parseIntegerEnv('SYNC_RETRY_MAX_MS', 60000, {
+  min: 1000,
+  max: 900000,
+});
+const SYNC_WORKER_INTERVAL_MS = parseIntegerEnv('SYNC_WORKER_INTERVAL_MS', 5000, {
+  min: 1000,
+  max: 120000,
+});
+
+function computeBackoffMs(retryCount) {
+  const exponent = Math.max(0, retryCount - 1);
+  const retryDelay = SYNC_RETRY_BASE_MS * (2 ** exponent);
+  return Math.min(retryDelay, SYNC_RETRY_MAX_MS);
+}
+
+function nextAttemptTimestamp(retryCount) {
+  const delayMs = computeBackoffMs(retryCount);
+  return new Date(Date.now() + delayMs).toISOString();
+}
+
+function isJobReady(job) {
+  if (!job?.next_attempt_at) {
+    return true;
+  }
+
+  const targetTime = Date.parse(job.next_attempt_at);
+  if (Number.isNaN(targetTime)) {
+    return true;
+  }
+
+  return targetTime <= Date.now();
+}
 
 async function enqueueShiftJob(shiftId, type) {
   const queue = await readQueue();
@@ -29,6 +86,7 @@ async function enqueueShiftJob(shiftId, type) {
     created_at: new Date().toISOString(),
     last_attempt_at: null,
     retry_count: 0,
+    next_attempt_at: new Date().toISOString(),
   });
 
   await writeQueue(queue);
@@ -102,6 +160,10 @@ export async function processSyncQueue() {
 
     while (queue.length > 0) {
       const job = queue[0];
+      if (!isJobReady(job)) {
+        break;
+      }
+
       const result = await processJob(job);
 
       if (result.success) {
@@ -117,6 +179,7 @@ export async function processSyncQueue() {
         ...job,
         retry_count: (job.retry_count || 0) + 1,
         last_attempt_at: new Date().toISOString(),
+        next_attempt_at: nextAttemptTimestamp((job.retry_count || 0) + 1),
       };
       await writeQueue(queue);
       break;
@@ -126,6 +189,44 @@ export async function processSyncQueue() {
   } finally {
     isProcessing = false;
   }
+}
+
+export function startSyncQueueWorker() {
+  if (workerInterval) {
+    return;
+  }
+
+  workerInterval = setInterval(() => {
+    processSyncQueue().catch((error) => {
+      logger.error('Sync queue worker loop failed.', { error: error.message });
+    });
+  }, SYNC_WORKER_INTERVAL_MS);
+
+  if (typeof workerInterval.unref === 'function') {
+    workerInterval.unref();
+  }
+
+  process.nextTick(() => {
+    processSyncQueue().catch((error) => {
+      logger.error('Initial sync queue worker run failed.', { error: error.message });
+    });
+  });
+
+  logger.info('Sync queue worker started.', {
+    intervalMs: SYNC_WORKER_INTERVAL_MS,
+    retryBaseMs: SYNC_RETRY_BASE_MS,
+    retryMaxMs: SYNC_RETRY_MAX_MS,
+  });
+}
+
+export function stopSyncQueueWorker() {
+  if (!workerInterval) {
+    return;
+  }
+
+  clearInterval(workerInterval);
+  workerInterval = null;
+  logger.info('Sync queue worker stopped.');
 }
 
 async function processJob(job) {

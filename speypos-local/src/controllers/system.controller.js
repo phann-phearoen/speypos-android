@@ -9,6 +9,7 @@ import {
   recordRecoveryError,
   setDegradedReasons,
 } from '../system/runtimeStatus.js';
+import { readQueue } from '../sync/queue.js';
 
 const REBOOT_EXIT_CODE = 75;
 
@@ -65,6 +66,7 @@ export function reboot(req, res) {
 export function getPendingActionsStatus(req, res) {
   try {
     const unprintedOrders = recoveryService.getUnprintedOrders();
+    const printerPending = recoveryService.getPrinterPendingMetrics();
     const unreportedOrders = recoveryService.getUnreportedOrders();
     const unreportedShifts = recoveryService.getUnreportedShifts();
     const runtime = getRuntimeStatus();
@@ -90,6 +92,7 @@ export function getPendingActionsStatus(req, res) {
     res.status(200).json({
       hasUnprintedOrders: unprintedOrders.count > 0,
       unprintedOrdersCount: unprintedOrders.count,
+      printerPending,
       hasUnreportedOrders: unreportedOrders.count > 0,
       unreportedOrdersCount: unreportedOrders.count,
       hasUnreportedShifts: unreportedShifts.count > 0,
@@ -118,6 +121,103 @@ export function getRuntimeStatusSnapshot(req, res) {
   }
 }
 
+export async function getReadinessStatus(req, res) {
+  try {
+    const runtime = getRuntimeStatus();
+    const unprintedOrders = recoveryService.getUnprintedOrders();
+    const printerPending = recoveryService.getPrinterPendingMetrics();
+    const unreportedOrders = recoveryService.getUnreportedOrders();
+    const unreportedShifts = recoveryService.getUnreportedShifts();
+
+    let queue = [];
+    let queueError = null;
+
+    try {
+      queue = await readQueue();
+    } catch (error) {
+      queueError = error;
+      logger.error('Readiness check could not read sync queue.', {
+        error: error.message,
+      });
+    }
+
+    const now = Date.now();
+    const queueSummary = queue.reduce(
+      (acc, job) => {
+        const retryCount = Number(job.retry_count || 0);
+        const nextAttemptAt = job.next_attempt_at || null;
+        const nextAttemptMs = nextAttemptAt ? Date.parse(nextAttemptAt) : Number.NaN;
+
+        if (!Number.isNaN(nextAttemptMs) && nextAttemptMs > now) {
+          acc.delayedJobs += 1;
+        } else {
+          acc.readyJobs += 1;
+        }
+
+        if (retryCount > acc.maxRetryCount) {
+          acc.maxRetryCount = retryCount;
+        }
+
+        if (!acc.oldestJobCreatedAt || (job.created_at && job.created_at < acc.oldestJobCreatedAt)) {
+          acc.oldestJobCreatedAt = job.created_at || acc.oldestJobCreatedAt;
+        }
+
+        if (nextAttemptAt && (!acc.nextAttemptAt || nextAttemptAt < acc.nextAttemptAt)) {
+          acc.nextAttemptAt = nextAttemptAt;
+        }
+
+        return acc;
+      },
+      {
+        totalJobs: queue.length,
+        readyJobs: 0,
+        delayedJobs: 0,
+        maxRetryCount: 0,
+        oldestJobCreatedAt: null,
+        nextAttemptAt: null,
+      }
+    );
+
+    const blockingReasons = [];
+
+    if (runtime.startupPhase !== 'ready') {
+      blockingReasons.push(`startup_phase_${runtime.startupPhase}`);
+    }
+
+    if (runtime.recoveryRunning) {
+      blockingReasons.push('recovery_running');
+    }
+
+    if (queueError) {
+      blockingReasons.push('sync_queue_unavailable');
+    }
+
+    const ready = blockingReasons.length === 0;
+
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ready' : 'not_ready',
+      ready,
+      timestamp: new Date().toISOString(),
+      blockingReasons,
+      runtime,
+      pendingActions: {
+        unprintedOrdersCount: unprintedOrders.count,
+        printerPending,
+        unreportedOrdersCount: unreportedOrders.count,
+        unreportedShiftsCount: unreportedShifts.count,
+      },
+      syncQueue: {
+        ...queueSummary,
+        queueAccessible: !queueError,
+        error: queueError?.message || null,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to compute readiness status', { error: error.message });
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
 /**
  * Handles the request to manually trigger retry jobs.
  */
@@ -128,7 +228,7 @@ export async function runRetryJobs(req, res) {
 
     process.nextTick(async () => {
       try {
-        const printRetry = await recoveryService.retryUnprintedOrders();
+        const printRetry = await recoveryService.retryUnprintedOrders({ context: 'manual' });
         const telegramRetry = await recoveryService.retryUnreportedTelegrams();
         recordRecoveryResult({
           context: 'manual',

@@ -17,7 +17,7 @@ export async function runRecoveryChecks() {
   setRecoveryRunning(true, 'startup');
 
   try {
-    const printRetry = await recoveryService.retryUnprintedOrders();
+    const printRetry = await recoveryService.retryUnprintedOrders({ context: 'startup' });
     const telegramRetry = await recoveryService.retryUnreportedTelegrams();
 
     recordRecoveryResult({

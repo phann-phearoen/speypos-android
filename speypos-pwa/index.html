@@ -25,9 +25,22 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     
-    <!-- Preconnect to Google Fonts -->
+    <!-- Google Fonts: non-blocking async load. Avoids render-blocking @import in CSS.
+         Falls back to system fonts if fonts.googleapis.com is unavailable (e.g. offline Android). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap"
+      />
+    </noscript>
   </head>
 
   <body>

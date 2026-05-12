@@ -9,8 +9,12 @@ const isTermuxRuntime =
   Boolean(process.env.TERMUX_VERSION) ||
   Boolean(process.env.ANDROID_ROOT);
 
+const isAndroidWebViewBuild =
+  process.env.SPEYPOS_ANDROID_WEBVIEW === "1" || process.env.VITE_ANDROID_WEBVIEW === "1";
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: isAndroidWebViewBuild ? "./" : "/",
   server: {
     host: "::",
     port: 8080,
@@ -19,6 +23,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      injectRegister: isAndroidWebViewBuild ? false : "auto",
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "placeholder.svg"],
       manifest: {
@@ -29,7 +34,8 @@ export default defineConfig(({ mode }) => ({
         background_color: "#f5f0eb",
         display: "standalone",
         orientation: "portrait",
-        start_url: "/",
+        start_url: isAndroidWebViewBuild ? "./" : "/",
+        scope: isAndroidWebViewBuild ? "./" : "/",
         icons: [
           {
             src: "/pwa-192x192.png",

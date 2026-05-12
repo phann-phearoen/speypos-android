@@ -2,6 +2,7 @@
   "scripts": {
     "termux:setup": "bash scripts/termux/setup.sh",
     "termux:deploy": "bash scripts/termux/deploy-pwa.sh",
+    "pwa:build:android-webview": "SPEYPOS_ANDROID_WEBVIEW=1 VITE_ANDROID_WEBVIEW=1 npm --prefix speypos-pwa run build",
     "termux:boot": "bash scripts/termux/boot.sh",
     "termux:start": "bash scripts/termux/start.sh",
     "termux:stop": "bash scripts/termux/stop.sh",

@@ -2,13 +2,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MenuProvider } from "@/contexts/MenuContext";
 import { ShiftProvider } from "@/contexts/ShiftContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { PendingActionsProvider } from "@/contexts/PendingActionsContext";
 import { SetupProvider } from "@/contexts/SetupContext";
+import { isAndroidWebViewBuild } from "@/lib/runtime-config";
 
 // POS Pages
 import ShiftPage from "./pages/pos/ShiftPage";
@@ -33,6 +34,7 @@ import { SettingsManagement } from "./components/admin/SettingsManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const Router = isAndroidWebViewBuild() ? HashRouter : BrowserRouter;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,7 +45,7 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <BrowserRouter>
+              <Router>
                 <MenuProvider>
                   <ShiftProvider>
                   <Routes>
@@ -81,7 +83,7 @@ const App = () => (
                   </Routes>
                   </ShiftProvider>
                 </MenuProvider>
-              </BrowserRouter>
+              </Router>
             </TooltipProvider>
           </PendingActionsProvider>
         </AuthProvider>

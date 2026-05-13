@@ -9,6 +9,7 @@ val repoRoot = rootProject.projectDir.parentFile
 val frontendDistDir = File(repoRoot, "speypos-pwa/dist")
 val generatedWebAssetsDir = layout.buildDirectory.dir("generated/web-assets/main/assets")
 val webAssetsDir = generatedWebAssetsDir.map { it.dir("web") }
+val generatedLauncherIconsDir = layout.buildDirectory.dir("generated/launcher-icons")
 
 android {
   namespace = "com.speypos.shell"
@@ -46,6 +47,7 @@ android {
   }
 
   sourceSets.getByName("main").assets.srcDir(generatedWebAssetsDir)
+  sourceSets.getByName("main").res.srcDir(generatedLauncherIconsDir)
 }
 
 dependencies {
@@ -65,6 +67,21 @@ val syncWebAssets = tasks.register<Copy>("syncWebAssets") {
   into(webAssetsDir.map { it.asFile })
 }
 
+val syncLauncherIcons = tasks.register("syncLauncherIcons") {
+  val sourceIcon = File(repoRoot, "speypos-pwa/public/pwa-192x192.png")
+  inputs.file(sourceIcon)
+  outputs.dir(generatedLauncherIconsDir)
+  doLast {
+    listOf("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi").forEach { density ->
+      val dir = generatedLauncherIconsDir.get().dir("mipmap-$density").asFile
+      dir.mkdirs()
+      sourceIcon.copyTo(File(dir, "ic_launcher.png"), overwrite = true)
+      sourceIcon.copyTo(File(dir, "ic_launcher_round.png"), overwrite = true)
+    }
+  }
+}
+
 tasks.named("preBuild") {
   dependsOn(syncWebAssets)
+  dependsOn(syncLauncherIcons)
 }

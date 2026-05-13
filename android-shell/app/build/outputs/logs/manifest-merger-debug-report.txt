@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-25:12
-INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-25:12
-INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-25:12
-INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-25:12
+ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-27:12
+INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-27:12
+INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-27:12
+INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:2:1-27:12
 MERGED from [androidx.databinding:viewbinding:8.5.2] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/ce88057abd250137f1adda271ed702a3/transformed/viewbinding-8.5.2/AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.android.material:material:1.12.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/24bd5cc203521d68f6f3d3cb6c1e7388/transformed/material-1.12.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.appcompat:appcompat-resources:1.7.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/429a9523ea1b497114f85d58370b22a0/transformed/appcompat-resources-1.7.0/AndroidManifest.xml:2:1-7:12
@@ -59,8 +59,8 @@ ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main
 	android:name
 		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:4:20-62
 application
-ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:6:3-23:17
-INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:6:3-23:17
+ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:6:3-25:17
+INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:6:3-25:17
 MERGED from [com.google.android.material:material:1.12.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/24bd5cc203521d68f6f3d3cb6c1e7388/transformed/material-1.12.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.12.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/24bd5cc203521d68f6f3d3cb6c1e7388/transformed/material-1.12.0/AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/b8337d1d0a67618a763bc0b16ffcec44/transformed/constraintlayout-2.0.1/AndroidManifest.xml:9:5-20
@@ -82,35 +82,39 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/phearoenphann/.gradl
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/8c97d544f9fbff002fa0e9b4e2fe7242/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:9:5-31
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:11:5-31
 	android:label
 		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:8:5-37
+	android:roundIcon
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:10:5-50
+	android:icon
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:9:5-39
 	android:allowBackup
 		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:7:5-32
 	android:theme
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:10:5-46
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:12:5-46
 	android:usesCleartextTraffic
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:11:5-40
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:13:5-40
 activity#com.speypos.shell.MainActivity
-ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:13:5-22:16
+ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:15:5-24:16
 	android:screenOrientation
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:16:7-43
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:18:7-43
 	android:launchMode
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:17:7-38
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:19:7-38
 	android:exported
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:15:7-30
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:17:7-30
 	android:name
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:14:7-35
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:16:7-35
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:18:7-21:23
+ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:20:7-23:23
 action#android.intent.action.MAIN
-ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:19:9-61
+ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:21:9-61
 	android:name
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:19:17-58
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:21:17-58
 category#android.intent.category.LAUNCHER
-ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:20:9-69
+ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:22:9-69
 	android:name
-		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:20:19-66
+		ADDED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml:22:19-66
 uses-sdk
 INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/phearoenphann/Ryong/speypos-android/android-shell/app/src/main/AndroidManifest.xml

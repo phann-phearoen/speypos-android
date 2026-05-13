@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { menuApi, categoryApi, menuItemCustomizationGroupApi, menuCategoryCustomizationGroupApi, menuItemToppingGroupApi, menuCategoryToppingGroupApi } from '@/lib/api';
+import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
 import type { MenuItem, MenuCategory, MenuItemCustomizationGroup, MenuCategoryCustomizationGroup, MenuItemToppingGroup, MenuCategoryToppingGroup } from '@/types/pos';
 
 interface MenuContextType {
@@ -15,6 +15,7 @@ interface MenuContextType {
 }
 
 const MenuContext = createContext<MenuContextType | null>(null);
+const menuCompatibility = getMenuCompatibilityProvider();
 
 export function MenuProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -31,12 +32,12 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     const [catResult, itemResult, mappingResult, categoryMappingResult, toppingMappingResult, categoryToppingMappingResult] = await Promise.all([
-      categoryApi.getCategories(),
-      menuApi.getItems(),
-      menuItemCustomizationGroupApi.getAll(),
-      menuCategoryCustomizationGroupApi.getAll(),
-      menuItemToppingGroupApi.getAll(),
-      menuCategoryToppingGroupApi.getAll(),
+      menuCompatibility.getCategories(),
+      menuCompatibility.getMenuItems(),
+      menuCompatibility.getMenuItemCustomizationMappings(),
+      menuCompatibility.getMenuCategoryCustomizationMappings(),
+      menuCompatibility.getMenuItemToppingMappings(),
+      menuCompatibility.getMenuCategoryToppingMappings(),
     ]);
 
     if (catResult.error || itemResult.error || mappingResult.error || categoryMappingResult.error || toppingMappingResult.error || categoryToppingMappingResult.error) {

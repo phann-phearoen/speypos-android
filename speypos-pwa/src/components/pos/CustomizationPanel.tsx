@@ -3,7 +3,7 @@ import { ChevronLeft, Check, Plus, Minus, Loader2, X } from 'lucide-react';
 import type { MenuItem, Customization, CustomizationGroup, OrderItemTopping, ToppingGroup, ToppingOption } from '@/types/pos';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
-import { customizationGroupApi, customizationOptionApi, toppingGroupApi, toppingOptionApi } from '@/lib/api';
+import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
 // Toast removed - order panel provides visual feedback
 
 interface CustomizationPanelProps {
@@ -22,6 +22,8 @@ interface CustomizationPanelProps {
 interface ToppingGroupWithOptions extends ToppingGroup {
   options: ToppingOption[];
 }
+
+const menuCompatibility = getMenuCompatibilityProvider();
 
 export function CustomizationPanel({ 
   item, 
@@ -64,8 +66,8 @@ export function CustomizationPanel({
         const groupsWithOptions = await Promise.all(
           linkedGroupIds.map(async (groupId) => {
             const [groupResult, optionsResult] = await Promise.all([
-              customizationGroupApi.getById(groupId),
-              customizationOptionApi.getByGroup(groupId),
+              menuCompatibility.getCustomizationGroupById(groupId),
+              menuCompatibility.getCustomizationOptionsByGroup(groupId),
             ]);
 
             const groupData = groupResult.data;
@@ -98,8 +100,8 @@ export function CustomizationPanel({
         const toppingsWithOptions = await Promise.all(
           linkedToppingGroupIds.map(async (groupId) => {
             const [groupResult, optionsResult] = await Promise.all([
-              toppingGroupApi.getById(groupId),
-              toppingOptionApi.getByGroup(groupId),
+              menuCompatibility.getToppingGroupById(groupId),
+              menuCompatibility.getToppingOptionsByGroup(groupId),
             ]);
 
             const groupData = groupResult.data;

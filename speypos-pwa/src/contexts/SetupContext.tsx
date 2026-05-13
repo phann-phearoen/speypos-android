@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { setupApi } from '@/lib/api';
+import { getSystemCompatibilityProvider } from '@/lib/compatibility/system';
 import { SetupPage } from '@/pages/SetupPage';
 import { Loader2 } from 'lucide-react';
 
@@ -14,6 +14,7 @@ interface SetupContextValue {
 }
 
 const SetupContext = createContext<SetupContextValue | null>(null);
+const systemCompatibility = getSystemCompatibilityProvider();
 
 export function SetupProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -26,7 +27,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     setError(null);
     
     try {
-      const { data, error: apiError } = await setupApi.getStatus();
+      const { data, error: apiError } = await systemCompatibility.getSetupStatus();
       
       if (apiError) {
         // If backend is unavailable, assume not initialized for setup flow

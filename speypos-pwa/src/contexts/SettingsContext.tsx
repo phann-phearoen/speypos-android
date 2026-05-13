@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { settingsApi, storeApi, resolveImageUrl } from '@/lib/api';
+import { resolveImageUrl } from '@/lib/api';
+import { getSettingsCompatibilityProvider } from '@/lib/compatibility/settings';
 import type { Setting, Store } from '@/types/pos';
 
 interface SettingsContextValue {
@@ -21,6 +22,7 @@ interface SettingsContextValue {
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
+const settingsCompatibility = getSettingsCompatibilityProvider();
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Map<string, any>>(new Map());
@@ -29,7 +31,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const { data, error } = await settingsApi.getAll();
+      const { data, error } = await settingsCompatibility.getAllSettings();
       if (error) {
         console.error('Failed to load settings:', error);
         return;
@@ -49,7 +51,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const fetchStore = useCallback(async () => {
     try {
-      const { data, error } = await storeApi.get();
+      const { data, error } = await settingsCompatibility.getStore();
       if (error) {
         console.error('Failed to load store:', error);
         return;

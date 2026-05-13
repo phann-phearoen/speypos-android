@@ -1,9 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { shiftApi, staffApi } from '@/lib/api';
+import { getStaffCompatibilityProvider } from '@/lib/compatibility/staff';
+import { getShiftCompatibilityProvider } from '@/lib/compatibility/shift';
 import type { Shift, Staff } from '@/types/pos';
 
 const SHIFT_STORAGE_KEY = 'speypos_active_shift';
+const shiftCompatibility = getShiftCompatibilityProvider();
+const staffCompatibility = getStaffCompatibilityProvider();
 
 interface StoredShiftData {
   shiftId: string;
@@ -61,7 +64,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
 
-    const result = await shiftApi.getShift(shiftId);
+    const result = await shiftCompatibility.getShift(shiftId);
 
     if (result.error || !result.data) {
       setError(result.error || 'Shift not found');
@@ -87,7 +90,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     }
 
     // Fetch staff info
-    const staffResult = await staffApi.getStaffMember(shift.staff_id);
+    const staffResult = await staffCompatibility.getStaffMember(shift.staff_id);
     if (staffResult.data) {
       setCurrentStaff(staffResult.data);
     }
@@ -138,7 +141,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
 
   const closeShift = useCallback(async () => {
     if (currentShift) {
-      await shiftApi.closeShift(currentShift.id);
+      await shiftCompatibility.closeShift(currentShift.id);
     }
     setCurrentShift(null);
     setCurrentStaff(null);
@@ -161,12 +164,12 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         const storedData: StoredShiftData = JSON.parse(stored);
         
         // Validate the stored shift is still open
-        const result = await shiftApi.getShift(storedData.shiftId);
+        const result = await shiftCompatibility.getShift(storedData.shiftId);
         if (result.data && result.data.status === 'open') {
-          const staffResult = await staffApi.getStaffMember(result.data.staff_id);
+          const staffResult = await staffCompatibility.getStaffMember(result.data.staff_id);
           if (staffResult.data) {
             // Also check for any other open shifts (orphaned)
-            const allOpenResult = await shiftApi.getOpenShifts();
+            const allOpenResult = await shiftCompatibility.getOpenShifts();
             const orphaned = allOpenResult.data?.filter((s: Shift) => s.id !== storedData.shiftId) || [];
             
             return { 
@@ -186,7 +189,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     }
     
     // Fallback: fetch ALL open shifts from backend
-    const shiftsResult = await shiftApi.getOpenShifts();
+    const shiftsResult = await shiftCompatibility.getOpenShifts();
     
     if (shiftsResult.error || !shiftsResult.data || shiftsResult.data.length === 0) {
       return null;
@@ -203,7 +206,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     const orphaned = openShifts.filter((s: Shift) => s.id !== activeShift.id);
     
     // Fetch associated staff
-    const staffResult = await staffApi.getStaffMember(activeShift.staff_id);
+    const staffResult = await staffCompatibility.getStaffMember(activeShift.staff_id);
     
     if (staffResult.error || !staffResult.data) {
       return null;

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, User, AlertCircle, RefreshCw, AlertTriangle, X, ArrowRight, CalendarCheck } from 'lucide-react';
-import { staffApi, shiftApi } from '@/lib/api';
+import { getStaffCompatibilityProvider } from '@/lib/compatibility/staff';
+import { getShiftCompatibilityProvider } from '@/lib/compatibility/shift';
 import { useShift } from '@/contexts/ShiftContext';
 import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -12,6 +13,9 @@ import { DayClosePreviewModal } from '@/components/pos/DayClosePreviewModal';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import type { Staff, Shift } from '@/types/pos';
+
+const shiftCompatibility = getShiftCompatibilityProvider();
+const staffCompatibility = getStaffCompatibilityProvider();
 
 export default function ShiftPage() {
   const navigate = useNavigate();
@@ -68,7 +72,7 @@ export default function ShiftPage() {
     setLoading(true);
     setError(null);
 
-    const result = await staffApi.getStaff();
+    const result = await staffCompatibility.getStaff();
 
     if (result.error) {
       setError(result.error);
@@ -90,7 +94,7 @@ export default function ShiftPage() {
     await refreshPendingActions();
 
     // Backend handles date using store timezone - no date param needed
-    const result = await shiftApi.openShift(selectedStaff.id);
+    const result = await shiftCompatibility.openShift(selectedStaff.id);
 
     if (result.error) {
       // Handle backend rejection for existing open shifts

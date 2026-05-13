@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { systemApi } from '@/lib/api';
+import { getSystemCompatibilityProvider } from '@/lib/compatibility/system';
 import type { PendingActionsStatus } from '@/types/pos';
 
 interface PendingActionsContextType {
@@ -12,6 +12,7 @@ interface PendingActionsContextType {
 }
 
 const PendingActionsContext = createContext<PendingActionsContextType | undefined>(undefined);
+const systemCompatibility = getSystemCompatibilityProvider();
 
 export function PendingActionsProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<PendingActionsStatus | null>(null);
@@ -23,7 +24,7 @@ export function PendingActionsProvider({ children }: { children: React.ReactNode
     setIsLoading(true);
     setError(null);
 
-    const result = await systemApi.getPendingActions();
+    const result = await systemCompatibility.getPendingActions();
 
     if (result.error) {
       setError(result.error);
@@ -38,7 +39,7 @@ export function PendingActionsProvider({ children }: { children: React.ReactNode
     setIsRetrying(true);
     setError(null);
 
-    const result = await systemApi.triggerRetry();
+    const result = await systemCompatibility.triggerRetry();
 
     if (result.error) {
       setError(result.error);

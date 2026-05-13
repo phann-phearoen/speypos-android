@@ -9,12 +9,14 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { orderApi } from '@/lib/api';
+import { getOrderCompatibilityProvider } from '@/lib/compatibility/order';
 import { useTranslation } from '@/lib/i18n';
 import { useCurrency } from '@/lib/currency';
 import { useDateTime } from '@/lib/datetime';
 import type { Order, OrderItem } from '@/types/pos';
 import { Badge } from '@/components/ui/badge';
+
+const orderCompatibility = getOrderCompatibilityProvider();
 
 interface ShiftClosePreviewModalProps {
   open: boolean;
@@ -51,7 +53,7 @@ export function ShiftClosePreviewModal({
 
   const loadOrders = async () => {
     setLoading(true);
-    const { data, error } = await orderApi.getOrdersByShift(shiftId);
+    const { data, error } = await orderCompatibility.getOrdersByShift(shiftId);
     if (!error && data) {
       // Sort by created_at descending (newest first)
       const sorted = [...data].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));

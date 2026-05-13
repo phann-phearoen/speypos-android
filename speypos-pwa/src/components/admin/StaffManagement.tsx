@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { staffApi } from '@/lib/api';
+import { getStaffCompatibilityProvider } from '@/lib/compatibility/staff';
 import type { Staff } from '@/types/pos';
 import { ImageUpload } from './ImageUpload';
 import { useTranslation } from '@/lib/i18n';
+
+const staffCompatibility = getStaffCompatibilityProvider();
 
 interface StaffFormData {
   name: string;
@@ -41,7 +43,7 @@ export function StaffManagement() {
 
   const fetchStaff = async () => {
     setIsLoading(true);
-    const response = await staffApi.getStaff();
+    const response = await staffCompatibility.getStaff();
     if (response.data) {
       setStaffList(response.data);
     }
@@ -98,17 +100,17 @@ export function StaffManagement() {
         if (formData.password.trim()) {
           updateData.password = formData.password.trim();
         }
-        const response = await staffApi.updateStaff(editingStaff.id, updateData);
+        const response = await staffCompatibility.updateStaff(editingStaff.id, updateData);
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.staffUpdated') });
       } else {
-        const response = await staffApi.createStaff({
+        const response = await staffCompatibility.createStaff({
           name: formData.name.trim(),
           password: formData.password.trim(),
           role: formData.role,
           status: formData.status,
           image_url: formData.image_url || undefined,
-        } as any);
+        });
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.staffCreated') });
       }
@@ -127,7 +129,7 @@ export function StaffManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await staffApi.deleteStaff(deletingStaff.id);
+      const response = await staffCompatibility.deleteStaff(deletingStaff.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.staffDeleted') });
       setIsDeleteOpen(false);

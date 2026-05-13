@@ -7,7 +7,7 @@ import { useShift } from '@/contexts/ShiftContext';
 import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
-import { orderApi } from '@/lib/api';
+import { getOrderCompatibilityProvider } from '@/lib/compatibility/order';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
 import {
@@ -31,6 +31,8 @@ interface LocationState {
 
 type PaymentType = 'cash' | 'qr';
 type VoidReason = 'mistake' | 'staff_consumption' | 'other';
+
+const orderCompatibility = getOrderCompatibilityProvider();
 
 export default function PaymentPage() {
   const navigate = useNavigate();
@@ -155,7 +157,7 @@ export default function PaymentPage() {
     if (paymentType === 'cash' && !canComplete) return;
     setProcessing(true);
 
-    const createResult = await orderApi.createOrder(buildOrderPayload());
+    const createResult = await orderCompatibility.createOrder(buildOrderPayload());
 
     if (createResult.data?.id) {
       const paymentPayload = paymentType === 'cash'
@@ -170,8 +172,8 @@ export default function PaymentPage() {
             amount: orderTotal,
           };
 
-      await orderApi.payOrder(createResult.data.id, paymentPayload);
-      await orderApi.printReceipt(createResult.data.id);
+      await orderCompatibility.payOrder(createResult.data.id, paymentPayload);
+      await orderCompatibility.printReceipt(createResult.data.id, 'initial');
     } else {
       toast({
         title: 'Offline Mode',
@@ -195,10 +197,10 @@ export default function PaymentPage() {
   const handleVoidOrder = async () => {
     setVoiding(true);
 
-    const createResult = await orderApi.createOrder(buildOrderPayload());
+    const createResult = await orderCompatibility.createOrder(buildOrderPayload());
 
     if (createResult.data?.id) {
-      await orderApi.voidOrder(createResult.data.id, {
+      await orderCompatibility.voidOrder(createResult.data.id, {
         void_reason: voidReason,
         void_note: voidNote || undefined,
         voided_by: currentStaff?.id || '',

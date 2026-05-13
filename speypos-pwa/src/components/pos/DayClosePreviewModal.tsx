@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { shiftApi } from '@/lib/api';
+import { getShiftCompatibilityProvider } from '@/lib/compatibility/shift';
 import { useTranslation } from '@/lib/i18n';
 import { useCurrency } from '@/lib/currency';
 import { useDateTime, formatDateString } from '@/lib/datetime';
@@ -23,6 +23,7 @@ interface DayClosePreviewModalProps {
 }
 
 const ORDERS_PER_PAGE = 10;
+const shiftCompatibility = getShiftCompatibilityProvider();
 
 export function DayClosePreviewModal({
   open,
@@ -49,7 +50,7 @@ export function DayClosePreviewModal({
   const loadPreview = async () => {
     setLoading(true);
     setError(null);
-    const { data, error: apiError } = await shiftApi.getCloseDayPreview();
+    const { data, error: apiError } = await shiftCompatibility.getCloseDayPreview();
     if (apiError) {
       setError(apiError);
       setPreview(null);
@@ -65,7 +66,7 @@ export function DayClosePreviewModal({
   const handleConfirm = async () => {
     setClosing(true);
     setError(null);
-    const { error: apiError } = await shiftApi.closeDay();
+    const { error: apiError } = await shiftCompatibility.closeDay();
     if (apiError) {
       setError(apiError);
       setClosing(false);

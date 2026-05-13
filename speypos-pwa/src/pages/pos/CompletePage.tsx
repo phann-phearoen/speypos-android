@@ -8,8 +8,10 @@ import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
 import { useCurrency } from '@/lib/currency';
-import { orderApi } from '@/lib/api';
+import { getOrderCompatibilityProvider } from '@/lib/compatibility/order';
 import { useTranslation } from '@/lib/i18n';
+
+const orderCompatibility = getOrderCompatibilityProvider();
 
 interface LocationState {
   total: number;
@@ -79,7 +81,7 @@ export default function CompletePage() {
     if (orderId) {
       try {
         setIsPrinting(true);
-        await orderApi.printReceipt(orderId);
+        await orderCompatibility.printReceipt(orderId, 'reprint');
       } catch (error) {
         console.log('Error printing receipt:', error);
       } finally {

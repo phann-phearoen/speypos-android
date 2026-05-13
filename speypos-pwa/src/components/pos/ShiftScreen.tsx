@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Play, User, AlertCircle, RefreshCw } from 'lucide-react';
-import { staffApi, shiftApi } from '@/lib/api';
+import { getStaffCompatibilityProvider } from '@/lib/compatibility/staff';
+import { getShiftCompatibilityProvider } from '@/lib/compatibility/shift';
 import type { Staff, Shift } from '@/types/pos';
+
+const shiftCompatibility = getShiftCompatibilityProvider();
+const staffCompatibility = getStaffCompatibilityProvider();
 
 interface ShiftScreenProps {
   onOpenShift: (shift: Shift, staff: Staff) => void;
@@ -23,7 +27,7 @@ export function ShiftScreen({ onOpenShift, isConnected }: ShiftScreenProps) {
     setLoading(true);
     setError(null);
     
-    const result = await staffApi.getStaff();
+    const result = await staffCompatibility.getStaff();
     
     if (result.error) {
       setError(result.error);
@@ -42,7 +46,7 @@ export function ShiftScreen({ onOpenShift, isConnected }: ShiftScreenProps) {
     setError(null);
     
     // Backend handles date using store timezone - no date param needed
-    const result = await shiftApi.openShift(selectedStaff.id);
+    const result = await shiftCompatibility.openShift(selectedStaff.id);
     
     if (result.error) {
       setError(result.error);

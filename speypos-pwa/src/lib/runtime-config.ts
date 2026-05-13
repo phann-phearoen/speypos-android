@@ -2,16 +2,20 @@ function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
+export type RuntimeApiProvider = 'http' | 'native';
+
 export interface SpeyposRuntimeConfig {
   backendUrl?: string;
   apiBaseUrl?: string;
   appBaseUrl?: string;
   disableServiceWorker?: boolean;
+  apiProvider?: RuntimeApiProvider;
 }
 
 declare global {
   interface Window {
     __SPEYPOS_RUNTIME__?: SpeyposRuntimeConfig;
+    SpeyposNativeBridge?: import('@/lib/compatibility/nativeBridge').SpeyposNativeBridge;
   }
 }
 
@@ -28,6 +32,9 @@ function getRuntimeConfig(): SpeyposRuntimeConfig {
     backendUrl: runtimeConfig.backendUrl || searchParams.get('backendUrl') || undefined,
     apiBaseUrl: runtimeConfig.apiBaseUrl || searchParams.get('apiBaseUrl') || undefined,
     appBaseUrl: runtimeConfig.appBaseUrl || searchParams.get('appBaseUrl') || undefined,
+    apiProvider:
+      runtimeConfig.apiProvider ||
+      (searchParams.get('apiProvider') === 'native' ? 'native' : undefined),
     disableServiceWorker:
       runtimeConfig.disableServiceWorker ||
       searchParams.get('disableServiceWorker') === '1' ||
@@ -71,4 +78,9 @@ export function getApiBaseUrl(): string {
   }
 
   return `${getBackendUrl()}/api`;
+}
+
+export function getRuntimeApiProvider(): RuntimeApiProvider {
+  const runtimeConfig = getRuntimeConfig();
+  return runtimeConfig.apiProvider === 'native' ? 'native' : 'http';
 }

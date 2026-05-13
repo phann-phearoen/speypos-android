@@ -52,13 +52,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { shiftApi, orderApi, staffApi, syncApi } from "@/lib/api";
+import { syncApi } from "@/lib/api";
+import { getOrderCompatibilityProvider } from "@/lib/compatibility/order";
+import { getStaffCompatibilityProvider } from "@/lib/compatibility/staff";
+import { getShiftCompatibilityProvider } from "@/lib/compatibility/shift";
 import { useCurrency } from "@/lib/currency";
 import { useTranslation } from "@/lib/i18n";
 import { useDateTime } from "@/lib/datetime";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useToast } from "@/hooks/use-toast";
 import type { Shift, Staff, Order, OrderItem } from "@/types/pos";
+
+const shiftCompatibility = getShiftCompatibilityProvider();
+const staffCompatibility = getStaffCompatibilityProvider();
+const orderCompatibility = getOrderCompatibilityProvider();
 
 export function OrderHistoryManagement() {
   // State
@@ -97,14 +104,14 @@ export function OrderHistoryManagement() {
   useEffect(() => {
     const loadInitialData = async () => {
       // Load staff
-      const staffResult = await staffApi.getStaff();
+      const staffResult = await staffCompatibility.getStaff();
       if (staffResult.data) {
         setStaffList(staffResult.data);
       }
       
       // Load all open shifts
       setLoadingOpenShifts(true);
-      const openShiftsResult = await shiftApi.getOpenShifts();
+      const openShiftsResult = await shiftCompatibility.getOpenShifts();
       if (openShiftsResult.data) {
         // Sort by started_at descending (most recent first)
         const sorted = openShiftsResult.data.sort(
@@ -121,7 +128,7 @@ export function OrderHistoryManagement() {
   useEffect(() => {
     const loadShifts = async () => {
       const dateStr = getDateString(selectedDate);
-      const result = await shiftApi.getShiftsByDate(dateStr);
+      const result = await shiftCompatibility.getShiftsByDate(dateStr);
       if (result.data) {
         const sortedShifts = result.data.sort(
           (a: Shift, b: Shift) => b.started_at - a.started_at
@@ -152,12 +159,12 @@ export function OrderHistoryManagement() {
     let result;
 
     if (selectedStaffId) {
-      result = await orderApi.getOrdersByShiftAndStaff(
+      result = await orderCompatibility.getOrdersByShiftAndStaff(
         selectedShiftId,
         selectedStaffId
       );
     } else {
-      result = await orderApi.getOrdersByShift(selectedShiftId);
+      result = await orderCompatibility.getOrdersByShift(selectedShiftId);
     }
 
     if (result.data) {
@@ -176,14 +183,14 @@ export function OrderHistoryManagement() {
   // Close orphaned shift handler
   const handleCloseShift = async (shiftId: string) => {
     setClosingShiftId(shiftId);
-    const result = await shiftApi.closeShift(shiftId);
+    const result = await shiftCompatibility.closeShift(shiftId);
     if (!result.error) {
       // Remove from openShifts state
       setOpenShifts(prev => prev.filter(s => s.id !== shiftId));
       
       // Refresh shifts list for current date in case it affects it
       const dateStr = getDateString(selectedDate);
-      const shiftsResult = await shiftApi.getShiftsByDate(dateStr);
+      const shiftsResult = await shiftCompatibility.getShiftsByDate(dateStr);
       if (shiftsResult.data) {
         setShifts(shiftsResult.data.sort((a: Shift, b: Shift) => b.started_at - a.started_at));
       }

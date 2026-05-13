@@ -6,6 +6,8 @@ export interface SpeyposNativeBridge {
   payOrder(orderId: string, payloadJson: string): string;
   voidOrder(orderId: string, payloadJson: string): string;
   printReceipt(orderId: string, mode: string): string;
+  getPrintQueueStatus(): string;
+  triggerPrintQueueRetry(): string;
   getStaff(): string;
   createStaff(payloadJson: string): string;
   updateStaff(staffId: string, payloadJson: string): string;

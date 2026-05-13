@@ -7,6 +7,7 @@ import { useShift } from '@/contexts/ShiftContext';
 import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
+import { toast } from '@/hooks/use-toast';
 import { getOrderCompatibilityProvider } from '@/lib/compatibility/order';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
@@ -157,41 +158,58 @@ export default function PaymentPage() {
     if (paymentType === 'cash' && !canComplete) return;
     setProcessing(true);
 
-    const createResult = await orderCompatibility.createOrder(buildOrderPayload());
+    try {
+      const createResult = await orderCompatibility.createOrder(buildOrderPayload());
 
-    if (createResult.data?.id) {
-      const paymentPayload = paymentType === 'cash'
-        ? {
-            payment_type: 'cash',
-            amount: orderTotal,
-            received_cash: receivedAmountCents,
-            change: change,
-          }
-        : {
-            payment_type: 'qr',
-            amount: orderTotal,
-          };
+      if (createResult.data?.id) {
+        const paymentPayload = paymentType === 'cash'
+          ? {
+              payment_type: 'cash',
+              amount: orderTotal,
+              received_cash: receivedAmountCents,
+              change: change,
+            }
+          : {
+              payment_type: 'qr',
+              amount: orderTotal,
+            };
 
-      await orderCompatibility.payOrder(createResult.data.id, paymentPayload);
-      await orderCompatibility.printReceipt(createResult.data.id, 'initial');
-    } else {
-      toast({
-        title: 'Offline Mode',
-        description: 'Order saved locally. Will sync when connected.',
+        const payResult = await orderCompatibility.payOrder(createResult.data.id, paymentPayload);
+        if (payResult.error || !payResult.data) {
+          toast({
+            title: 'Payment Failed',
+            description: payResult.error || 'Unable to complete payment. Please try again.',
+          });
+          return;
+        }
+
+        const printResult = await orderCompatibility.printReceipt(createResult.data.id, 'initial');
+        if (printResult.error) {
+          toast({
+            title: 'Print Pending',
+            description: 'Payment succeeded, but receipt printing failed. You can reprint from Complete.',
+          });
+        }
+      } else {
+        toast({
+          title: 'Offline Mode',
+          description: 'Order saved locally. Will sync when connected.',
+        });
+      }
+
+      await updateToCompleted();
+
+      navigate(`/pos/complete?shiftId=${shiftId}`, {
+        state: {
+          total: orderTotal,
+          received: paymentType === 'cash' ? receivedAmountCents : orderTotal,
+          change: paymentType === 'cash' ? change : 0,
+          paymentType,
+        },
       });
+    } finally {
+      setProcessing(false);
     }
-
-    await updateToCompleted();
-    setProcessing(false);
-
-    navigate(`/pos/complete?shiftId=${shiftId}`, {
-      state: {
-        total: orderTotal,
-        received: paymentType === 'cash' ? receivedAmountCents : orderTotal,
-        change: paymentType === 'cash' ? change : 0,
-        paymentType,
-      },
-    });
   };
 
   const handleVoidOrder = async () => {

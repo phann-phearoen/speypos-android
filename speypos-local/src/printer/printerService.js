@@ -26,9 +26,12 @@ function resolvePrinterMode() {
     return { mode: 'CONSOLE' };
   }
 
+  const connectionMethod = lan.connection_method === 'wifi' ? 'wifi' : 'lan';
+
   return {
     mode: 'RAW_TCP_9100',
     config: {
+      connectionMethod,
       host: lan.host,
       port: lan.port,
       timeoutMs: lan.timeout_ms,
@@ -64,6 +67,7 @@ export async function printReceipt(order) {
   try {
     logger.info(`Printing ${copies.length} variants for order ${order.id}`, {
       copies,
+      printerConnectionMethod: printer.mode === 'RAW_TCP_9100' ? printer.config.connectionMethod : 'console',
     });
 
     const printer = resolvePrinterMode();

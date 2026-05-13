@@ -132,16 +132,29 @@ function validatePrinterLan(value) {
 
   assertAllowedKeys(
     value,
-    ['version', 'enabled', 'protocol', 'host', 'port', 'timeout_ms', 'profile'],
-    'printer.lan'
+    ['version', 'enabled', 'connection_method', 'protocol', 'host', 'port', 'timeout_ms', 'profile'],
+    'printer.lan',
+    { requireAll: false }
   );
+
+  for (const key of ['version', 'enabled', 'protocol', 'host', 'port', 'timeout_ms', 'profile']) {
+    if (!(key in value)) {
+      throw new ValidationError(`Missing required key at printer.lan: ${key}`);
+    }
+  }
 
   if (value.version !== 1) {
     throw new ValidationError('printer.lan.version must be 1');
   }
 
   assertBoolean(value.enabled, 'printer.lan.enabled');
+  assertOptionalString(value.connection_method, 'printer.lan.connection_method', { allowEmpty: false });
   assertString(value.protocol, 'printer.lan.protocol', { allowEmpty: false });
+    const connectionMethod = value.connection_method ?? 'lan';
+    if (connectionMethod !== 'lan' && connectionMethod !== 'wifi') {
+      throw new ValidationError('printer.lan.connection_method must be lan or wifi');
+    }
+
   assertString(value.host, 'printer.lan.host');
   assertInteger(value.port, 'printer.lan.port');
   assertInteger(value.timeout_ms, 'printer.lan.timeout_ms');

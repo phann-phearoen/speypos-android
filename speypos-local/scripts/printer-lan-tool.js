@@ -17,7 +17,7 @@ function usage() {
   console.log('Usage: node scripts/printer-lan-tool.js <command> [options]');
   console.log('Commands:');
   console.log('  get');
-  console.log('  set --host=<ip> [--port=9100] [--timeout=5000] [--profile=default] [--enabled=true]');
+  console.log('  set --host=<ip> [--method=lan|wifi] [--port=9100] [--timeout=5000] [--profile=default] [--enabled=true]');
   console.log('  disable');
   console.log('  test [--message=TEXT]');
 }
@@ -37,8 +37,17 @@ function saveConfig(config) {
     value: config,
     value_type: 'json',
     category: 'Printing',
-    description: 'LAN printer configuration',
+    description: 'Network printer configuration supporting LAN or WiFi',
   });
+}
+
+function parseMethod(name, fallback = 'lan') {
+  const raw = getArgValue(name);
+  const method = (raw || fallback).toLowerCase();
+  if (!['lan', 'wifi'].includes(method)) {
+    throw new Error(`${name} must be one of: lan, wifi. Received: ${raw}`);
+  }
+  return method;
 }
 
 function parseInteger(name, fallback) {
@@ -103,6 +112,7 @@ async function run() {
     const next = {
       version: 1,
       enabled: parseBoolean('--enabled', true),
+      connection_method: parseMethod('--method', current?.connection_method || 'lan'),
       protocol: 'raw9100',
       host,
       port: parseInteger('--port', current?.port || 9100),
@@ -121,6 +131,7 @@ async function run() {
     const next = {
       version: 1,
       enabled: false,
+      connection_method: current.connection_method === 'wifi' ? 'wifi' : 'lan',
       protocol: 'raw9100',
       host: current.host || '',
       port: current.port || 9100,

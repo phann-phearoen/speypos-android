@@ -479,14 +479,43 @@ Status legend:
 	- Add targeted parity checks for payment, void, and print state transitions.
 		- Engineering check added: npm --prefix speypos-local run test:refactor13 (pass on 2026-05-13).
 	- Introduce print queue/retry orchestration and duplicate-print prevention parity checks.
+		- Engineering check added: npm --prefix speypos-local run test:refactor14 (pass on 2026-05-13).
 	- Expand money-normalization and totals invariants for transactional payloads.
+		- Engineering check added: npm --prefix speypos-local run test:refactor15 (pass on 2026-05-13).
+	- Add receipt/print lifecycle invariants across controller, printer service, and compatibility boundary.
+		- Engineering check added: npm --prefix speypos-local run test:refactor16 (pass on 2026-05-13).
+	- Add payment-print orchestration ordering and fallback parity checks.
+		- Engineering check added: npm --prefix speypos-local run test:refactor17 (pass on 2026-05-13).
+	- Add negative-path guards so payment errors block initial print and preserve fallback error surfaces.
+		- Engineering check added: npm --prefix speypos-local run test:refactor18 (pass on 2026-05-13).
+	- Add retry/observability contract checks for pending-actions and runtime-status context signals.
+		- Engineering check added: npm --prefix speypos-local run test:refactor19 (pass on 2026-05-13).
+	- Add readiness endpoint contract checks for status behavior, blocking reasons, and sync-queue summary shape.
+		- Engineering check added: npm --prefix speypos-local run test:refactor20 (pass on 2026-05-13).
+	- Lock printer connection methods to LAN and WiFi and align printer configuration schema across backend/native defaults.
+		- Engineering check added: npm --prefix speypos-local run test:refactor21 (pass on 2026-05-13).
 
 5. Phase 4: Recovery and Sync Port
-- Status: Not started.
+- Status: In progress (native print queue/retry foundation).
 - Evidence:
-	- No Android-native recovery/sync job migration finalized yet.
+	- Native print queue persistence and retry orchestration foundation is now implemented in Android shell runtime:
+		- Persisted print queue with status/attempt/backoff/dead-letter tracking in android-shell/app/src/main/java/com/speypos/shell/NativeConfigStore.kt.
+		- Native bridge queue control/status endpoints in android-shell/app/src/main/java/com/speypos/shell/SpeyposNativeBridge.kt:
+			- getPrintQueueStatus
+			- triggerPrintQueueRetry
+		- WorkManager-based periodic and startup queue processing wiring in:
+			- android-shell/app/src/main/java/com/speypos/shell/MainActivity.kt
+			- android-shell/app/src/main/java/com/speypos/shell/PrintQueueWorker.kt
+		- Android dependency wiring for WorkManager in android-shell/app/build.gradle.kts.
+		- Engineering guard check added: npm --prefix speypos-local run test:refactor22 (pass on 2026-05-13).
+		- Native compatibility trigger path now uses on-device queue retry bridge before HTTP fallback:
+			- speypos-pwa/src/lib/compatibility/system.ts
+			- speypos-pwa/src/lib/compatibility/nativeBridge.ts
+		- System status type alignment for queue-backed signals in speypos-pwa/src/types/pos.ts.
+		- Engineering guard check added: npm --prefix speypos-local run test:refactor23 (pass on 2026-05-13).
 - Next gate:
-	- Implement startup reconciliation and native retry/backoff job primitives.
+	- Extend startup reconciliation to include non-print pending actions and sync queue parity.
+	- Add native queue dead-letter operational hooks to diagnostics and runtime status surfaces used by support workflows.
 
 6. Phase 5: Kiosk Hardening and Device Management
 - Status: Not started.

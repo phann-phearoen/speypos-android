@@ -200,6 +200,16 @@ export interface ApiError {
 export interface PendingActionsStatus {
   hasUnprintedOrders: boolean;
   unprintedOrdersCount: number;
+  printerPending?: {
+    total_jobs: number;
+    pending_jobs: number;
+    retrying_jobs: number;
+    processing_jobs: number;
+    succeeded_jobs: number;
+    duplicate_prevented_jobs: number;
+    dead_letter_jobs: number;
+    next_attempt_at: number | null;
+  };
   hasUnreportedOrders: boolean;
   unreportedOrdersCount: number;
   hasUnreportedShifts: boolean;
@@ -216,6 +226,16 @@ export interface RuntimeStatus {
   recoveryRunning: boolean;
   degraded: boolean;
   degradedReasons: string[];
+  printQueue?: {
+    total_jobs: number;
+    pending_jobs: number;
+    retrying_jobs: number;
+    processing_jobs: number;
+    succeeded_jobs: number;
+    duplicate_prevented_jobs: number;
+    dead_letter_jobs: number;
+    next_attempt_at: number | null;
+  };
   lastRecoveryRun: {
     context: string;
     at: string;

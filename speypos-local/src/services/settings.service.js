@@ -27,6 +27,7 @@ const defaults = {
     value: JSON.stringify({
       version: 1,
       enabled: false,
+      connection_method: 'lan',
       protocol: 'raw9100',
       host: '',
       port: 9100,
@@ -35,7 +36,7 @@ const defaults = {
     }),
     value_type: 'json',
     category: 'Printing',
-    description: 'LAN printer configuration for RAW TCP printing transport.',
+    description: 'Network printer configuration supporting LAN or WiFi over RAW TCP printing transport.',
   },
   'telegram.intents': {
     value: JSON.stringify({
@@ -91,6 +92,22 @@ function castValue(value, type) {
   }
 }
 
+function normalizeSettingValue(key, value) {
+  if (key !== 'printer.lan' || typeof value !== 'object' || value === null) {
+    return value;
+  }
+
+  const method = value.connection_method;
+  if (method === 'lan' || method === 'wifi') {
+    return value;
+  }
+
+  return {
+    ...value,
+    connection_method: 'lan',
+  };
+}
+
 /**
  * Initializes the settings service by loading defaults and then overriding with DB values.
  */
@@ -121,7 +138,7 @@ export function initializeSettings() {
   const finalDbSettings = settingsRepo.getAllSettings();
   cache.clear();
   for (const setting of finalDbSettings) {
-    const castedValue = castValue(setting.value, setting.value_type);
+    const castedValue = normalizeSettingValue(setting.key, castValue(setting.value, setting.value_type));
     validateSetting(setting.key, castedValue, setting.value_type);
     cache.set(setting.key, castedValue);
   }
@@ -185,19 +202,23 @@ export function getJSON(key) {
  * @returns {object} The updated, casted setting object.
  */
 export function set(settingData) {
-  validateSetting(settingData.key, settingData.value, settingData.value_type);
+  const normalizedValue = normalizeSettingValue(settingData.key, settingData.value);
+  validateSetting(settingData.key, normalizedValue, settingData.value_type);
   // Ensure value is stored as a string in the database
   const dbValue =
-    typeof settingData.value === 'object'
-      ? JSON.stringify(settingData.value)
-      : String(settingData.value);
+    typeof normalizedValue === 'object'
+      ? JSON.stringify(normalizedValue)
+      : String(normalizedValue);
 
   const updatedRepoData = { ...settingData, value: dbValue };
 
   const updatedSetting = settingsRepo.upsertSetting(updatedRepoData);
 
   // Update cache with the correctly typed value
-  const castedValue = castValue(updatedSetting.value, updatedSetting.value_type);
+  const castedValue = normalizeSettingValue(
+    updatedSetting.key,
+    castValue(updatedSetting.value, updatedSetting.value_type)
+  );
   validateSetting(updatedSetting.key, castedValue, updatedSetting.value_type);
   cache.set(updatedSetting.key, castedValue);
 

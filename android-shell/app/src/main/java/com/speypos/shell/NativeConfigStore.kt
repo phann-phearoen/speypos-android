@@ -87,6 +87,11 @@ class NativeConfigStore(private val context: Context) {
       changed = true
     }
 
+    if (!preferences.contains(PREF_NATIVE_PRINT_QUEUE_JSON)) {
+      editor.putString(PREF_NATIVE_PRINT_QUEUE_JSON, JSONArray().toString())
+      changed = true
+    }
+
     if (!preferences.contains(PREF_SYSTEM_INITIALIZED)) {
       editor.putBoolean(PREF_SYSTEM_INITIALIZED, true)
       changed = true
@@ -437,43 +442,306 @@ class NativeConfigStore(private val context: Context) {
 
   fun printReceipt(orderId: String, mode: String): JSONObject {
     val current = readOrders()
-    val now = System.currentTimeMillis()
-    var updatedOrder: JSONObject? = null
-    val updated = JSONArray()
     val allowReprint = mode == "reprint"
 
-    for (index in 0 until current.length()) {
-      val order = current.optJSONObject(index) ?: continue
-      if (order.optString("id") == orderId) {
+    val target = findOrderById(current, orderId)
+    if (target == null) {
+      throw IllegalArgumentException("Order not found: $orderId")
+    }
+
+    if (target.optString("status") != "completed") {
+      throw IllegalStateException("Cannot print receipt for non-completed order")
+    }
+
+    if (!allowReprint && target.optInt("print_count", 0) > 0) {
+      return JSONObject(target.toString())
+        .put("duplicate_print_prevented", true)
+        .put("print_job", JSONObject.NULL)
+    }
+
+    val job = enqueuePrintJob(orderId, if (allowReprint) "reprint" else "initial")
+    val processResult = processPrintQueue("inline", 20)
+    val latest = findOrderById(readOrders(), orderId)
+      ?: throw IllegalArgumentException("Order not found after print processing: $orderId")
+
+    return JSONObject(latest.toString())
+      .put("print_job", job)
+      .put("print_queue", processResult)
+  }
+
+  fun processPrintQueue(context: String = "manual", maxAttemptsPerRun: Int = 20): JSONObject {
+    val now = System.currentTimeMillis()
+    val queue = readPrintQueue()
+    val cappedAttempts = maxAttemptsPerRun.coerceIn(1, 500)
+    val updatedQueue = JSONArray()
+
+    var processed = 0
+    var succeeded = 0
+    var retried = 0
+    var deadLettered = 0
+
+    for (index in 0 until queue.length()) {
+      val job = queue.optJSONObject(index) ?: continue
+      val status = job.optString("status")
+      val nextAttemptAt = job.optLong("next_attempt_at", 0L)
+      val eligible = status == PRINT_JOB_PENDING || status == PRINT_JOB_RETRYING
+
+      if (!eligible || processed >= cappedAttempts || nextAttemptAt > now) {
+        updatedQueue.put(job)
+        continue
+      }
+
+      val processingJob = JSONObject(job.toString())
+        .put("status", PRINT_JOB_PROCESSING)
+        .put("updated_at", now)
+
+      try {
+        val mode = processingJob.optString("mode", "initial")
+        val orderId = processingJob.optString("order_id")
+        val order = findOrderById(readOrders(), orderId)
+          ?: throw IllegalStateException("Order not found for print job: $orderId")
+
         if (order.optString("status") != "completed") {
           throw IllegalStateException("Cannot print receipt for non-completed order")
         }
 
-        if (!allowReprint && order.optInt("print_count", 0) > 0) {
-          val unchanged = JSONObject(order.toString())
-            .put("duplicate_print_prevented", true)
-          updated.put(unchanged)
-          updatedOrder = unchanged
+        if (mode == "initial" && order.optInt("print_count", 0) > 0) {
+          val duplicateJob = JSONObject(processingJob.toString())
+            .put("status", PRINT_JOB_DUPLICATE_PREVENTED)
+            .put("last_error", JSONObject.NULL)
+            .put("updated_at", now)
+          updatedQueue.put(duplicateJob)
+          succeeded += 1
+          processed += 1
           continue
         }
 
+        validatePrinterTarget(processingJob)
+        incrementOrderPrint(orderId, now)
+
+        val successJob = JSONObject(processingJob.toString())
+          .put("status", PRINT_JOB_SUCCEEDED)
+          .put("last_error", JSONObject.NULL)
+          .put("updated_at", now)
+        updatedQueue.put(successJob)
+        succeeded += 1
+      } catch (error: Exception) {
+        val attempts = processingJob.optInt("attempt_count", 0) + 1
+        val maxAttempts = processingJob.optInt("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+        val message = error.message ?: "Print job failed"
+
+        if (attempts >= maxAttempts) {
+          val dead = JSONObject(processingJob.toString())
+            .put("status", PRINT_JOB_DEAD_LETTER)
+            .put("attempt_count", attempts)
+            .put("last_error", message)
+            .put("updated_at", now)
+          updatedQueue.put(dead)
+          deadLettered += 1
+        } else {
+          val backoffMs = computeBackoffMs(attempts)
+          val retry = JSONObject(processingJob.toString())
+            .put("status", PRINT_JOB_RETRYING)
+            .put("attempt_count", attempts)
+            .put("next_attempt_at", now + backoffMs)
+            .put("last_error", message)
+            .put("updated_at", now)
+          updatedQueue.put(retry)
+          retried += 1
+        }
+      }
+
+      processed += 1
+    }
+
+    persistPrintQueue(updatedQueue)
+
+    return JSONObject()
+      .put("context", context)
+      .put("processed", processed)
+      .put("succeeded", succeeded)
+      .put("retried", retried)
+      .put("dead_lettered", deadLettered)
+      .put("summary", getPrintQueueStatus())
+  }
+
+  fun getPrintQueueStatus(): JSONObject {
+    val queue = readPrintQueue()
+    var pending = 0
+    var retrying = 0
+    var processing = 0
+    var succeeded = 0
+    var duplicatePrevented = 0
+    var deadLetter = 0
+    var nextAttemptAt: Long? = null
+
+    for (index in 0 until queue.length()) {
+      val job = queue.optJSONObject(index) ?: continue
+      when (job.optString("status")) {
+        PRINT_JOB_PENDING -> pending += 1
+        PRINT_JOB_RETRYING -> {
+          retrying += 1
+          val candidate = job.optLong("next_attempt_at", 0L)
+          if (candidate > 0 && (nextAttemptAt == null || candidate < nextAttemptAt)) {
+            nextAttemptAt = candidate
+          }
+        }
+        PRINT_JOB_PROCESSING -> processing += 1
+        PRINT_JOB_SUCCEEDED -> succeeded += 1
+        PRINT_JOB_DUPLICATE_PREVENTED -> duplicatePrevented += 1
+        PRINT_JOB_DEAD_LETTER -> deadLetter += 1
+      }
+    }
+
+    return JSONObject()
+      .put("total_jobs", queue.length())
+      .put("pending_jobs", pending)
+      .put("retrying_jobs", retrying)
+      .put("processing_jobs", processing)
+      .put("succeeded_jobs", succeeded)
+      .put("duplicate_prevented_jobs", duplicatePrevented)
+      .put("dead_letter_jobs", deadLetter)
+      .put("next_attempt_at", nextAttemptAt ?: JSONObject.NULL)
+  }
+
+  private fun enqueuePrintJob(orderId: String, mode: String): JSONObject {
+    val now = System.currentTimeMillis()
+    val queue = readPrintQueue()
+    val settings = resolvePrinterNetworkSettings()
+
+    val normalizedMode = if (mode == "reprint") "reprint" else "initial"
+    val jobId = if (normalizedMode == "initial") {
+      "print-initial-$orderId"
+    } else {
+      "print-reprint-$orderId-$now"
+    }
+
+    if (normalizedMode == "initial") {
+      for (index in 0 until queue.length()) {
+        val existing = queue.optJSONObject(index) ?: continue
+        if (existing.optString("id") == jobId) {
+          val status = existing.optString("status")
+          if (status == PRINT_JOB_SUCCEEDED || status == PRINT_JOB_DUPLICATE_PREVENTED) {
+            return existing
+          }
+
+          val reset = JSONObject(existing.toString())
+            .put("status", PRINT_JOB_PENDING)
+            .put("attempt_count", 0)
+            .put("next_attempt_at", now)
+            .put("last_error", JSONObject.NULL)
+            .put("updated_at", now)
+          queue.put(index, reset)
+          persistPrintQueue(queue)
+          return reset
+        }
+      }
+    }
+
+    val job = JSONObject()
+      .put("id", jobId)
+      .put("order_id", orderId)
+      .put("mode", normalizedMode)
+      .put("status", PRINT_JOB_PENDING)
+      .put("connection_method", settings.optString("connection_method", "lan"))
+      .put("host", settings.optString("host", ""))
+      .put("port", settings.optInt("port", 9100))
+      .put("attempt_count", 0)
+      .put("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+      .put("next_attempt_at", now)
+      .put("last_error", JSONObject.NULL)
+      .put("created_at", now)
+      .put("updated_at", now)
+
+    queue.put(job)
+    persistPrintQueue(queue)
+    return job
+  }
+
+  private fun resolvePrinterNetworkSettings(): JSONObject {
+    val settings = readSettings()
+    for (index in 0 until settings.length()) {
+      val setting = settings.optJSONObject(index) ?: continue
+      if (setting.optString("key") == "printer.lan") {
+        val raw = setting.opt("value")
+        return when (raw) {
+          is JSONObject -> raw
+          else -> JSONObject()
+        }
+      }
+    }
+
+    return JSONObject()
+      .put("enabled", false)
+      .put("connection_method", "lan")
+      .put("host", "")
+      .put("port", 9100)
+  }
+
+  private fun validatePrinterTarget(job: JSONObject) {
+    val host = job.optString("host", "").trim()
+    val port = job.optInt("port", 9100)
+    if (host.isBlank()) {
+      throw IllegalStateException("Printer host is not configured")
+    }
+    if (port <= 0 || port > 65535) {
+      throw IllegalStateException("Printer port is out of range")
+    }
+  }
+
+  private fun incrementOrderPrint(orderId: String, now: Long) {
+    val current = readOrders()
+    val updated = JSONArray()
+    var found = false
+
+    for (index in 0 until current.length()) {
+      val order = current.optJSONObject(index) ?: continue
+      if (order.optString("id") == orderId) {
         val merged = JSONObject(order.toString())
           .put("last_printed_at", now)
           .put("print_count", order.optInt("print_count", 0) + 1)
           .put("duplicate_print_prevented", false)
         updated.put(merged)
-        updatedOrder = merged
+        found = true
       } else {
         updated.put(order)
       }
     }
 
-    if (updatedOrder == null) {
-      throw IllegalArgumentException("Order not found: $orderId")
+    if (!found) {
+      throw IllegalStateException("Order not found while updating print state: $orderId")
     }
 
     persistOrders(updated)
-    return updatedOrder
+  }
+
+  private fun findOrderById(orders: JSONArray, orderId: String): JSONObject? {
+    for (index in 0 until orders.length()) {
+      val order = orders.optJSONObject(index) ?: continue
+      if (order.optString("id") == orderId) {
+        return order
+      }
+    }
+
+    return null
+  }
+
+  private fun computeBackoffMs(attempt: Int): Long {
+    val exponent = attempt.coerceAtMost(6)
+    return (1L shl exponent) * 1_000L
+  }
+
+  private fun readPrintQueue(): JSONArray {
+    val preferences = getPreferences()
+    val raw = preferences.getString(PREF_NATIVE_PRINT_QUEUE_JSON, null) ?: return JSONArray()
+
+    return try {
+      JSONArray(raw)
+    } catch (_: Exception) {
+      val fallback = JSONArray()
+      preferences.edit().putString(PREF_NATIVE_PRINT_QUEUE_JSON, fallback.toString()).apply()
+      fallback
+    }
   }
 
   fun createStaff(payload: JSONObject): JSONObject {
@@ -668,6 +936,10 @@ class NativeConfigStore(private val context: Context) {
     getPreferences().edit().putString(PREF_NATIVE_ORDERS_JSON, orders.toString()).apply()
   }
 
+  private fun persistPrintQueue(queue: JSONArray) {
+    getPreferences().edit().putString(PREF_NATIVE_PRINT_QUEUE_JSON, queue.toString()).apply()
+  }
+
   private fun buildDefaultOrders(): JSONArray {
     return JSONArray()
       .put(JSONObject()
@@ -755,6 +1027,7 @@ class NativeConfigStore(private val context: Context) {
         value = JSONObject()
           .put("version", 1)
           .put("enabled", false)
+          .put("connection_method", "lan")
           .put("protocol", "raw9100")
           .put("host", "")
           .put("port", 9100)
@@ -762,7 +1035,7 @@ class NativeConfigStore(private val context: Context) {
           .put("profile", "default"),
         valueType = "json",
         category = "Printing",
-        description = "LAN printer configuration for RAW TCP printing transport."
+        description = "Network printer configuration supporting LAN or WiFi over RAW TCP printing transport."
       ))
       .put(buildSettingRecord(
         id = "android-telegram-intents",
@@ -1060,5 +1333,14 @@ class NativeConfigStore(private val context: Context) {
     private const val PREF_NATIVE_MENU_ITEMS_JSON = "native.menu.items.json"
     private const val PREF_NATIVE_STORE_JSON = "native.store.json"
     private const val PREF_NATIVE_SETTINGS_JSON = "native.settings.json"
+    private const val PREF_NATIVE_PRINT_QUEUE_JSON = "native.print.queue.json"
+    private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
+
+    private const val PRINT_JOB_PENDING = "pending"
+    private const val PRINT_JOB_RETRYING = "retrying"
+    private const val PRINT_JOB_PROCESSING = "processing"
+    private const val PRINT_JOB_SUCCEEDED = "succeeded"
+    private const val PRINT_JOB_DUPLICATE_PREVENTED = "duplicate_prevented"
+    private const val PRINT_JOB_DEAD_LETTER = "dead_letter"
   }
 }

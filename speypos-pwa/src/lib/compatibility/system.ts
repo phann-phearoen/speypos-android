@@ -50,7 +50,14 @@ const nativeSystemCompatibilityProvider: SystemCompatibilityProvider = {
 
     return httpSystemCompatibilityProvider.getRuntimeStatus();
   },
-  triggerRetry: () => httpSystemCompatibilityProvider.triggerRetry(),
+  triggerRetry: async () => {
+    const result = callNativeBridge<unknown>('triggerPrintQueueRetry');
+    if (!result.error) {
+      return { data: null, error: null };
+    }
+
+    return httpSystemCompatibilityProvider.triggerRetry();
+  },
 };
 
 function resolveProvider(provider: RuntimeApiProvider): SystemCompatibilityProvider {

@@ -1,0 +1,13 @@
+R_DEF: Internal format may change without notice
+local
+color shell_background
+color shell_foreground
+color shell_muted_foreground
+id errorContainer
+id errorMessage
+id errorTitle
+id retryButton
+id webView
+layout activity_main
+string app_name
+style Theme.SpeyposShell

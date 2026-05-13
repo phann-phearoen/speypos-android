@@ -61,6 +61,8 @@ class MainActivity : AppCompatActivity() {
       databaseEnabled = true
       allowFileAccess = true
       allowContentAccess = true
+      allowFileAccessFromFileURLs = true
+      allowUniversalAccessFromFileURLs = true
       javaScriptCanOpenWindowsAutomatically = false
       mediaPlaybackRequiresUserGesture = false
       cacheMode = WebSettings.LOAD_DEFAULT

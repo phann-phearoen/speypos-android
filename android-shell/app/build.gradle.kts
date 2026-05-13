@@ -7,7 +7,8 @@ plugins {
 
 val repoRoot = rootProject.projectDir.parentFile
 val frontendDistDir = File(repoRoot, "speypos-pwa/dist")
-val generatedWebAssetsDir = layout.buildDirectory.dir("generated/web-assets/main/assets/web")
+val generatedWebAssetsDir = layout.buildDirectory.dir("generated/web-assets/main/assets")
+val webAssetsDir = generatedWebAssetsDir.map { it.dir("web") }
 
 android {
   namespace = "com.speypos.shell"
@@ -61,7 +62,7 @@ val buildFrontendForAndroid = tasks.register<Exec>("buildFrontendForAndroid") {
 val syncWebAssets = tasks.register<Copy>("syncWebAssets") {
   dependsOn(buildFrontendForAndroid)
   from(frontendDistDir)
-  into(generatedWebAssetsDir.map { it.asFile })
+  into(webAssetsDir.map { it.asFile })
 }
 
 tasks.named("preBuild") {

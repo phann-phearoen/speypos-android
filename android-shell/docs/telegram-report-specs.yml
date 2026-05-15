@@ -1,0 +1,252 @@
+version: 1
+generated_at: 2026-05-15
+scope: speypos-local Telegram report and formatting behavior
+
+source_of_truth:
+  formatter: speypos-local/src/services/telegram.formatter.js
+  sender: speypos-local/src/services/telegram.service.js
+  intents_constant: speypos-local/src/constants/telegram.constants.js
+  order_triggers: speypos-local/src/controllers/order.controller.js
+  shift_triggers: speypos-local/src/controllers/shift.controller.js
+  day_close_trigger: speypos-local/src/services/shift.service.js
+  retry_flow: speypos-local/src/services/recovery.service.js
+  localization_en: speypos-local/src/localizations/en.json
+  localization_km: speypos-local/src/localizations/km.json
+  currency_rules: speypos-local/src/services/store.service.js
+  environment: speypos-local/src/config/env.js
+
+transport_contract:
+  protocol: Telegram Bot API sendMessage
+  endpoint_template: https://api.telegram.org/bot<token>/sendMessage
+  request_method: POST
+  request_json:
+    chat_id: <intent_specific_chat_id>
+    text: <formatted_message>
+    parse_mode: Markdown
+  timeout_ms:
+    source_env: TELEGRAM_FETCH_TIMEOUT_MS
+    default: 8000
+    min: 1000
+    max: 60000
+  token_source_env: TELEGRAM_BOT_TOKEN
+
+settings_contract:
+  setting_key: telegram.intents
+  expected_shape:
+    version: 1
+    intents:
+      - intent: ORDER_TRACKER
+        enabled: false
+        chat_id: ""
+      - intent: SHIFT_TRACKER
+        enabled: false
+        chat_id: ""
+  supported_intents:
+    - ORDER_TRACKER
+    - SHIFT_TRACKER
+  send_guard_rules:
+    - If TELEGRAM_BOT_TOKEN is missing, skip sending.
+    - If telegram.intents is missing or malformed, skip sending.
+    - If requested intent is missing, skip sending.
+    - If intent is disabled or has empty chat_id, skip sending.
+
+delivery_flow:
+  idempotency:
+    order_report:
+      guard_field: order.telegram_reported_at
+      guard_behavior: If set, do not send.
+      success_mark: orderRepo.markAsTelegramReported(order.id)
+    shift_report:
+      guard_field: shift.telegram_reported_at
+      guard_behavior: If set, do not send.
+      success_mark: shiftRepo.markAsTelegramReported(shift.id)
+  triggers:
+    - event: order_payment_created
+      source: POST /orders/:id/payments in order.controller.js
+      formatter: formatOrderMessage
+      intent: ORDER_TRACKER
+      retry_indicator_possible: true
+    - event: order_voided
+      source: POST/PATCH void handler in order.controller.js
+      formatter: formatOrderMessage (routes to void format when status=VOIDED)
+      intent: ORDER_TRACKER
+      retry_indicator_possible: true
+    - event: shift_closed
+      source: PATCH /shifts/:id with status=closed in shift.controller.js
+      formatter: formatShiftCloseMessage
+      intent: SHIFT_TRACKER
+      retry_indicator_possible: true
+    - event: day_close_report_generated
+      source: shift.service.generateDayCloseReport
+      formatter: formatDayCloseMessage
+      intent: SHIFT_TRACKER
+      retry_indicator_possible: false
+  retry_job:
+    source: recovery.service.retryUnreportedTelegrams
+    behavior:
+      - Retries unreported orders with option isRetry=true.
+      - Retries unreported shifts with option isRetry=true.
+      - Stops each list on first failure.
+
+localization_contract:
+  language_resolution:
+    source: storeService.getLanguage()
+    fallback: en
+    supported_bundles:
+      - en
+      - km
+  translation_groups_used:
+    - retried_indicator
+    - order_message
+    - void_message
+    - shift_close_message
+    - day_close_summary
+  interpolation:
+    placeholder_pattern: "{key}"
+    behavior: global string replacement per placeholder key
+  time_formatting:
+    locale_fixed: en-US
+    applied_to:
+      - order_message.time (created_at)
+      - void_message.time (voided_at)
+      - shift_close_message.duration (started_at, ended_at)
+    options:
+      hour: numeric
+      minute: 2-digit
+  payment_label_localization:
+    mapping:
+      cash: localized cash_payment label
+      qr: localized qr_payment label
+    fallback_for_other_types: raw payment type string
+
+currency_contract:
+  input_unit: integer minor unit from storage
+  currency_source: storeService.getCurrency()
+  fallback_currency: USD
+  metadata:
+    USD:
+      minor_unit: 2
+      symbol: "$"
+    KHR:
+      minor_unit: 0
+      symbol: "\u17db"
+  formatter:
+    api: Intl.NumberFormat
+    locale: en-US
+    style: currency
+    currency_code: store currency code
+  conversion_rule:
+    formula: display_value = integerAmount / (10 ^ minor_unit)
+  invalid_number_behavior:
+    output: ""
+
+format_contract:
+  markdown_mode: true
+  escaping_behavior:
+    markdown_escaping_applied: false
+    note: Dynamic content (item names, staff names, notes) is inserted as-is.
+
+  order_message_non_void:
+    order_id_display: id.slice(0, 8)
+    payment_type_source: first payment only (payments[0].payment_type), else N/A
+    item_grouping:
+      key: menu_item_name
+      order: insertion order from original items array
+    detail_line_rules:
+      customizations: list of customizations[].value where truthy
+      toppings:
+        label: topping.name
+        quantity_suffix:
+          - If quantity is null/undefined: no suffix.
+          - 'If unit_label is missing or equals qty: "x<quantity>".'
+          - 'Else: "<quantity> <unit_label>".'
+      details_joiner: ", "
+      output_line:
+        with_details: "- (<details_csv>) x <item.quantity>"
+        without_details: "- x <item.quantity>"
+    line_sequence:
+      - "{order_message.title}{retried_indicator_if_retry}"
+      - ""
+      - "{order_message.time}"
+      - "{order_message.staff}"
+      - ""
+      - "{order_message.items}"
+      - ""
+      - "For each grouped menu item:"
+      - "*{menu_item_name}*"
+      - "One line per item variant using output_line rule"
+      - ""
+      - ""
+      - "{order_message.total}"
+      - "{order_message.payment}"
+
+  order_message_void:
+    order_id_display: id.split('-')[0]
+    voided_by_resolution: voided_by_staff.name || staff.name || '-'
+    reason_resolution: localized void_message.reasons[void_reason] || raw void_reason || '-'
+    note_line: included only when void_note is non-empty
+    line_sequence:
+      - "{void_message.title}{retried_indicator_if_retry}"
+      - ""
+      - "{void_message.time}"
+      - "{void_message.staff}"
+      - "{void_message.reason}"
+      - "{void_message.note} (optional)"
+
+  shift_close_message:
+    line_sequence:
+      - "{shift_close_message.title}{retried_indicator_if_retry}"
+      - ""
+      - "{shift_close_message.duration}"
+      - ""
+      - "{shift_close_message.total_orders}"
+      - "{shift_close_message.total_items_sold}"
+      - "If voidedOrders > 0:"
+      - ""
+      - "{shift_close_message.voided_orders}"
+      - "{shift_close_message.voided_items}"
+      - "{shift_close_message.voided_amount}"
+      - ""
+      - "{shift_close_message.revenue_by_payment_type}"
+      - "For each revenueByPaymentType entry: {shift_close_message.revenue_line}"
+      - ""
+      - "{shift_close_message.total_revenue}"
+
+  day_close_message:
+    intro_sequence:
+      - "*{day_close_summary.title}*"
+      - ""
+      - "_{day_close_summary.business_date}_"
+      - ""
+    per_shift_sequence:
+      - "*{day_close_summary.shift_section_header}*"
+      - "{day_close_summary.total_orders}"
+      - "{day_close_summary.total_items_sold}"
+      - "{day_close_summary.total_revenue}"
+      - "If summary.voidedOrders > 0: blank line + voided block + trailing blank line"
+      - "If payment breakdown exists:"
+      - "{day_close_summary.payment_breakdown}"
+      - "For each payment type: {day_close_summary.payment_line}"
+      - "Two trailing blank lines after each shift section"
+    combined_sequence:
+      - "Leading blank line before combined header"
+      - "*{day_close_summary.combined_section_header}*"
+      - "{day_close_summary.total_orders}"
+      - "{day_close_summary.grand_total_items_sold}"
+      - "{day_close_summary.grand_total_revenue}"
+      - "If combined voidedOrders > 0: blank line + voided block + trailing blank line"
+      - "If payment breakdown exists:"
+      - "{day_close_summary.payment_breakdown}"
+      - "For each payment type: {day_close_summary.payment_line}"
+      - ""
+      - "*{day_close_summary.conclusion}*"
+    known_implementation_detail:
+      - Shift-level payment type labels are not remapped to localized cash/qr labels.
+      - Combined section payment labels are remapped for cash/qr.
+
+native_alignment_notes:
+  - Preserve line breaks exactly; extra/missing blank lines will change visual grouping in Telegram.
+  - Preserve Markdown parse mode and bold/italic markers (*text*, _text_).
+  - Keep localization keys and placeholder names unchanged to remain data-compatible.
+  - Keep currency formatting rule tied to integer minor units and store currency.
+  - Keep idempotency marking semantics equivalent to telegram_reported_at lifecycle.

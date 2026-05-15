@@ -3,6 +3,7 @@ package com.speypos.shell
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.Charset
+import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -10,75 +11,120 @@ import java.util.*
 
 class ReceiptRenderer {
     companion object {
-        fun renderOrder(order: JSONObject, variant: String = "INTERNAL", language: String = "en"): ByteArray {
-            val sb = StringBuilder()
-            
-            // ESC/POS Initialize: 1B 40
-            val init = byteArrayOf(0x1B, 0x40)
-            // ESC/POS Cut: 1D 56 00
-            val cut = byteArrayOf(0x1D, 0x56, 0x00)
+        private const val LINE_WIDTH = 42
 
-            val l = getTranslations(language)
+        fun renderOrder(
+            order: JSONObject,
+            variant: String = "INTERNAL",
+            language: String = "en",
+            currencyCode: String = "USD"
+        ): ByteArray {
             val isVoided = variant == "VOID" || order.optString("status") == "voided"
             
-            val title = if (isVoided) "${l["title"]} (VOIDED)" else l["title"] ?: "Receipt"
-            val shortId = order.optString("id").split("-").firstOrNull() ?: "N/A"
-            val timestamp = formatTimestamp(order.optLong("created_at", System.currentTimeMillis()), language)
+            val out = mutableListOf<Byte>()
 
-            sb.append(title).append("\n")
-            sb.append("--------------------------------\n")
-            sb.append("Order ID: ").append(shortId).append("\n")
-            sb.append("Date: ").append(timestamp).append("\n")
-            sb.append("--------------------------------\n")
+            // ESC/POS Initialize: 1B 40
+            out.addAll(listOf(0x1B.toByte(), 0x40.toByte()))
+            
+            // Set double-height/width for title
+            out.addAll(listOf(0x1B.toByte(), 0x21.toByte(), 0x30.toByte())) // Double height & width
+            out.addAll(centerAlign())
+            
+            val title = if (isVoided) getTranslation("receipt.void_title", language) else getTranslation("receipt.title", language)
+            out.addAll(textBytes("$title\n"))
+            
+            // Reset to normal font
+            out.addAll(listOf(0x1B.toByte(), 0x21.toByte(), 0x00.toByte()))
+            out.addAll(textBytes("\n"))
 
+            // Order Info
+            out.addAll(leftAlign())
+            val orderId = order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
+            out.addAll(textBytes("${getTranslation("receipt.order_id", language).replace("{orderId}", orderId)}\n"))
+            val timestamp = formatTimestamp(order.optLong(if (isVoided) "voided_at" else "created_at", System.currentTimeMillis()), language)
+            out.addAll(textBytes("${getTranslation("receipt.date", language).replace("{timestamp}", timestamp)}\n"))
+            val staffName = order.optString("staff_name", "Unknown")
+            out.addAll(textBytes("${getTranslation("receipt.staff_label", language)}: $staffName\n"))
+            
+            out.addAll(textBytes("-".repeat(LINE_WIDTH) + "\n"))
+
+            // Items Grouping
             val items = order.optJSONArray("items") ?: JSONArray()
+            val itemMap = mutableMapOf<String, MutableList<JSONObject>>()
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i) ?: continue
-                val qty = item.optInt("quantity", 1)
                 val name = item.optString("menu_item_name", "Unknown")
-                sb.append("$qty x $name\n")
+                itemMap.getOrPut(name) { mutableListOf() }.add(item)
+            }
 
-                val customizations = item.optJSONArray("customizations") ?: JSONArray()
-                val toppings = item.optJSONArray("toppings") ?: JSONArray()
-                
-                val details = mutableListOf<String>()
-                for (j in 0 until customizations.length()) {
-                    val c = customizations.optJSONObject(j) ?: continue
-                    details.add(c.optString("value"))
-                }
-                for (j in 0 until toppings.length()) {
-                    val t = toppings.optJSONObject(j) ?: continue
-                    val tQty = t.optInt("quantity", 0)
-                    val tUnit = t.optString("unit_label", "qty")
-                    val qtyText = if (tUnit == "qty") "x$tQty" else "$tQty $tUnit"
-                    details.add("${t.optString("name")} $qtyText")
-                }
-
-                if (details.isNotEmpty()) {
-                    sb.append("  - ").append(details.joinToString(", ")).append("\n")
+            itemMap.forEach { (name, variants) ->
+                out.addAll(textBytes("* $name\n"))
+                variants.forEach { v ->
+                    val details = mutableListOf<String>()
+                    val customs = v.optJSONArray("customizations") ?: JSONArray()
+                    for (j in 0 until customs.length()) {
+                        details.add(customs.optJSONObject(j)?.optString("value") ?: "")
+                    }
+                    val toppings = v.optJSONArray("toppings") ?: JSONArray()
+                    for (j in 0 until toppings.length()) {
+                        val t = toppings.optJSONObject(j) ?: continue
+                        val qty = t.optInt("quantity", 1)
+                        val unit = t.optString("unit_label", "qty")
+                        val suffix = if (unit == "qty" || unit.isBlank()) "x$qty" else "$qty $unit"
+                        details.add("${t.optString("name")} $suffix")
+                    }
+                    
+                    val detailCsv = details.filter { it.isNotBlank() }.joinToString(", ")
+                    val qtyText = "x ${v.optInt("quantity", 1)}"
+                    if (detailCsv.isNotBlank()) {
+                        out.addAll(textBytes("  - ($detailCsv) $qtyText\n"))
+                    } else {
+                        out.addAll(textBytes("  - $qtyText\n"))
+                    }
                 }
             }
 
-            sb.append("--------------------------------\n")
-            
+            out.addAll(textBytes("-".repeat(LINE_WIDTH) + "\n"))
+
+            // Totals
             if (isVoided) {
-                sb.append("Reason: ").append(order.optString("void_reason", "N/A")).append("\n")
-                sb.append("Note: ").append(order.optString("void_note", "-")).append("\n")
-                sb.append("Voided at: ").append(formatTimestamp(order.optLong("voided_at", System.currentTimeMillis()), language)).append("\n")
+                out.addAll(textBytes("${getTranslation("receipt.void_reason_label", language)}: ${order.optString("void_reason", "N/A")}\n"))
+                val note = order.optString("void_note", "")
+                if (note.isNotBlank()) {
+                    out.addAll(textBytes("${getTranslation("receipt.void_note_label", language)}: $note\n"))
+                }
             } else {
-                val total = order.optInt("total_amount", 0).toDouble() / 100.0
-                sb.append("Total: $").append(String.format(Locale.US, "%.2f", total)).append("\n")
+                val total = formatCurrency(order.optInt("total_amount", 0), currencyCode)
+                out.addAll(textBytes(justifyRight("${getTranslation("receipt.total", language).replace("{total}", total)}\n")))
+                
+                val payment = order.optJSONObject("payment")
+                val pType = payment?.optString("payment_type", "cash") ?: "cash"
+                val pLabel = getTranslation("order_message.${pType}_payment", language)
+                out.addAll(textBytes("${getTranslation("receipt.payment_type", language).replace("{paymentType}", pLabel)}\n"))
             }
-            
-            sb.append("\n\n\n")
 
-            val textBytes = sb.toString().toByteArray(Charset.forName("UTF-8"))
-            val result = ByteArray(init.size + textBytes.size + cut.size)
-            System.arraycopy(init, 0, result, 0, init.size)
-            System.arraycopy(textBytes, 0, result, init.size, textBytes.size)
-            System.arraycopy(cut, 0, result, init.size + textBytes.size, cut.size)
+            out.addAll(textBytes("\n"))
+            out.addAll(centerAlign())
+            out.addAll(textBytes("${getTranslation("receipt.thank_you", language)}\n"))
             
-            return result
+            // Feed and Cut
+            out.addAll(textBytes("\n\n\n\n"))
+            out.addAll(listOf(0x1D.toByte(), 0x56.toByte(), 0x41.toByte(), 0x00.toByte())) // Feed + Partial Cut
+
+            return out.toByteArray()
+        }
+
+        private fun textBytes(text: String): List<Byte> {
+            return text.toByteArray(Charset.forName("UTF-8")).toList()
+        }
+
+        private fun centerAlign() = listOf(0x1B.toByte(), 0x61.toByte(), 0x01.toByte())
+        private fun leftAlign() = listOf(0x1B.toByte(), 0x61.toByte(), 0x00.toByte())
+
+        private fun justifyRight(text: String): String {
+            val trimmed = text.trim()
+            if (trimmed.length >= LINE_WIDTH) return text
+            return " ".repeat(LINE_WIDTH - trimmed.length) + trimmed + "\n"
         }
 
         private fun formatTimestamp(millis: Long, language: String): String {
@@ -88,19 +134,65 @@ class ReceiptRenderer {
             return formatter.format(Instant.ofEpochMilli(millis))
         }
 
-        private fun getTranslations(language: String): Map<String, String> {
-            // Simplified translations for the receipt
-            return if (language == "km") {
-                mapOf(
-                    "title" to "វិក្កយបត្របញ្ជាទិញ",
-                    "void_title" to "វិក្កយបត្រមោឃៈ"
-                )
+        private fun formatCurrency(minorUnits: Int, code: String): String {
+            val amount = minorUnits.toDouble() / (if (code == "KHR") 1.0 else 100.0)
+            val symbol = if (code == "KHR") "៛" else "$"
+            val formatter = NumberFormat.getNumberInstance(Locale.US)
+            if (code == "KHR") {
+                formatter.maximumFractionDigits = 0
             } else {
-                mapOf(
-                    "title" to "Order Receipt",
-                    "void_title" to "VOID RECEIPT"
-                )
+                formatter.minimumFractionDigits = 2
+                formatter.maximumFractionDigits = 2
             }
+            return "$symbol${formatter.format(amount)}"
         }
+
+        private fun getTranslation(path: String, lang: String): String {
+            val bundle = if (lang == "km") KM_STRINGS else EN_STRINGS
+            val parts = path.split(".")
+            var current: Any? = bundle
+            for (part in parts) {
+                current = (current as? Map<*, *>)?.get(part)
+            }
+            return current as? String ?: path
+        }
+
+        private val EN_STRINGS = mapOf(
+            "order_message" to mapOf(
+                "cash_payment" to "Cash",
+                "qr_payment" to "QR Code"
+            ),
+            "receipt" to mapOf(
+                "title" to "Order Receipt",
+                "void_title" to "VOID RECEIPT",
+                "order_id" to "Order ID: {orderId}",
+                "date" to "Date: {timestamp}",
+                "staff_label" to "Staff",
+                "total" to "Total: {total}",
+                "payment_type" to "Payment Type: {paymentType}",
+                "thank_you" to "Thank you!",
+                "void_reason_label" to "Reason",
+                "void_note_label" to "Note"
+            )
+        )
+
+        private val KM_STRINGS = mapOf(
+            "order_message" to mapOf(
+                "cash_payment" to "សាច់ប្រាក់",
+                "qr_payment" to "QR កូដ"
+            ),
+            "receipt" to mapOf(
+                "title" to "វិក្កយបត្រកម្មង់",
+                "void_title" to "វិក្កយបត្របោះបង់",
+                "order_id" to "លេខសម្គាល់ការកម្មង់៖ {orderId}",
+                "date" to "កាលបរិច្ឆេទ៖ {timestamp}",
+                "staff_label" to "បុគ្គលិក",
+                "total" to "សរុប៖ {total}",
+                "payment_type" to "ប្រភេទការទូទាត់៖ {paymentType}",
+                "thank_you" to "សូមអរគុណ!",
+                "void_reason_label" to "មូលហេតុ",
+                "void_note_label" to "កំណត់សំគាល់"
+            )
+        )
     }
 }

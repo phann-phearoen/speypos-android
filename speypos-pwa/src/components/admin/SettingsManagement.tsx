@@ -60,6 +60,7 @@ export function SettingsManagement() {
   const [printerLan, setPrinterLan] = useState({ enabled: false, host: '', port: 9100 });
 
   // Telegram intents state
+  const [telegramToken, setTelegramToken] = useState('');
   const [telegramIntents, setTelegramIntents] = useState<TelegramIntent[]>([]);
   const [originalIntents, setOriginalIntents] = useState<TelegramIntent[]>([]);
   const [intentErrors, setIntentErrors] = useState<Record<string, string>>({});
@@ -150,6 +151,11 @@ export function SettingsManagement() {
           setOriginalIntents(intentsSetting.value.intents);
         }
 
+        const tokenSetting = data.find((s: Setting) => s.key === 'telegram.token');
+        if (tokenSetting?.value) {
+          setTelegramToken(tokenSetting.value);
+        }
+
         // Load cloud sync settings
         const cloudSyncSetting = data.find((s: Setting) => s.key === 'cloud.sync');
         if (cloudSyncSetting?.value?.version === 1) {
@@ -229,6 +235,13 @@ export function SettingsManagement() {
     if (!validateAllIntents()) return;
     setSavingTelegram(true);
     try {
+      await settingsCompatibility.upsertSetting('telegram.token', {
+        value: telegramToken,
+        value_type: 'string',
+        category: 'Integrations',
+        description: 'Telegram Bot API Token',
+      });
+
       const { error } = await settingsCompatibility.upsertSetting('telegram.intents', {
         value: { version: 1, intents: telegramIntents },
         value_type: 'json',
@@ -420,6 +433,15 @@ export function SettingsManagement() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+              <Label className="text-sm font-medium">Bot Token</Label>
+              <Input
+                type="password"
+                value={telegramToken}
+                onChange={(e) => setTelegramToken(e.target.value)}
+                placeholder="Enter Telegram Bot Token"
+              />
+            </div>
             {telegramIntents.map(intent => (
               <div key={intent.intent} className="p-4 border rounded-lg bg-muted/30 space-y-3">
                 <div className="flex items-center justify-between">

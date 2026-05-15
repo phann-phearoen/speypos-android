@@ -2,6 +2,10 @@ package com.speypos.shell
 
 import android.content.Context
 import android.util.Log
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkManager
 import java.time.LocalDate
 import java.util.UUID
 import org.json.JSONArray
@@ -757,6 +761,92 @@ class NativeConfigStore(private val context: Context) {
     }
   }
 
+  private fun computeShiftSummary(shiftId: String): JSONObject {
+    val orders = readArray(PREF_NATIVE_ORDERS_JSON)
+    var totalOrders = 0
+    var totalItems = 0
+    var totalRevenue = 0
+    var voidedOrders = 0
+    var voidedItems = 0
+    var voidedAmount = 0
+    val pBreakdown = JSONObject()
+
+    for (i in 0 until orders.length()) {
+      val o = orders.optJSONObject(i) ?: continue
+      if (o.optString("shift_id") == shiftId) {
+        val status = o.optString("status")
+        if (status == "completed") {
+          totalOrders++
+          totalItems += o.optInt("total_items", 0)
+          val amount = o.optInt("total_amount", 0)
+          totalRevenue += amount
+          
+          val payment = o.optJSONObject("payment")
+          val pType = payment?.optString("payment_type", "cash") ?: "cash"
+          pBreakdown.put(pType, pBreakdown.optInt(pType, 0) + amount)
+        } else if (status == "voided") {
+          voidedOrders++
+          voidedItems += o.optInt("total_items", 0)
+          voidedAmount += o.optInt("total_amount", 0)
+        }
+      }
+    }
+
+    return JSONObject()
+      .put("total_orders", totalOrders)
+      .put("total_items", totalItems)
+      .put("total_revenue", totalRevenue)
+      .put("voided_orders", voidedOrders)
+      .put("voided_items", voidedItems)
+      .put("voided_amount", voidedAmount)
+      .put("payment_breakdown", pBreakdown)
+  }
+
+  private fun computeDaySummary(date: String): JSONObject {
+    val shifts = readShifts()
+    val shiftSummaries = JSONArray()
+    var totalOrders = 0
+    var totalItems = 0
+    var totalRevenue = 0
+    var voidedOrders = 0
+    var voidedItems = 0
+    var voidedAmount = 0
+    val pBreakdown = JSONObject()
+
+    for (i in 0 until shifts.length()) {
+      val s = shifts.optJSONObject(i) ?: continue
+      if (s.optString("date") == date) {
+        val summary = computeShiftSummary(s.optString("id"))
+        shiftSummaries.put(JSONObject(s.toString()).put("summary", summary))
+        
+        totalOrders += summary.optInt("total_orders")
+        totalItems += summary.optInt("total_items")
+        totalRevenue += summary.optInt("total_revenue")
+        voidedOrders += summary.optInt("voided_orders")
+        voidedItems += summary.optInt("voided_items")
+        voidedAmount += summary.optInt("voided_amount")
+        
+        val p = summary.optJSONObject("payment_breakdown") ?: JSONObject()
+        val keys = p.keys()
+        while (keys.hasNext()) {
+          val k = keys.next()
+          pBreakdown.put(k, pBreakdown.optInt(k, 0) + p.optInt(k))
+        }
+      }
+    }
+
+    return JSONObject()
+      .put("date", date)
+      .put("shifts", shiftSummaries)
+      .put("total_orders", totalOrders)
+      .put("total_items", totalItems)
+      .put("total_revenue", totalRevenue)
+      .put("voided_orders", voidedOrders)
+      .put("voided_items", voidedItems)
+      .put("voided_amount", voidedAmount)
+      .put("payment_breakdown", pBreakdown)
+  }
+
   fun readShifts(): JSONArray {
     val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
     val staff = readStaff()
@@ -800,6 +890,7 @@ class NativeConfigStore(private val context: Context) {
   fun readOrders(): JSONArray {
     val orders = readArray(PREF_NATIVE_ORDERS_JSON)
     val staff = readStaff()
+    val catalogItems = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
 
     val enriched = JSONArray()
     for (i in 0 until orders.length()) {
@@ -817,6 +908,23 @@ class NativeConfigStore(private val context: Context) {
       }
 
       val enrichedOrder = JSONObject(order.toString()).put("staff_name", staffName)
+      
+      // Enrich items with names if missing
+      val items = enrichedOrder.optJSONArray("items") ?: JSONArray()
+      for (k in 0 until items.length()) {
+        val item = items.optJSONObject(k) ?: continue
+        if (item.optString("menu_item_name").isBlank()) {
+          val itemId = item.optString("menu_item_id")
+          for (l in 0 until catalogItems.length()) {
+            val catalogItem = catalogItems.optJSONObject(l) ?: continue
+            if (catalogItem.optString("id") == itemId) {
+              item.put("menu_item_name", catalogItem.optString("name"))
+              break
+            }
+          }
+        }
+      }
+
       enriched.put(enrichedOrder)
     }
     return enriched
@@ -916,6 +1024,13 @@ class NativeConfigStore(private val context: Context) {
     }
 
     persistOrders(updated)
+    
+    // Trigger Telegram report
+    enqueuePendingAction(ACTION_TYPE_ORDER_REPORT, JSONObject()
+      .put("order_id", orderId)
+      .put("status", "completed")
+      .put("timestamp", now))
+      
     return updatedOrder
   }
 
@@ -950,6 +1065,13 @@ class NativeConfigStore(private val context: Context) {
     }
 
     persistOrders(updated)
+    
+    // Trigger Telegram report
+    enqueuePendingAction(ACTION_TYPE_ORDER_REPORT, JSONObject()
+      .put("order_id", orderId)
+      .put("status", "voided")
+      .put("timestamp", now))
+
     return updatedOrder
   }
 
@@ -1008,6 +1130,17 @@ class NativeConfigStore(private val context: Context) {
         .put("status", PRINT_JOB_PROCESSING)
         .put("updated_at", now)
 
+      // Immediate persistence of processing status to prevent race conditions
+      val currentQueue = readPrintQueue()
+      for (i in 0 until currentQueue.length()) {
+        val qj = currentQueue.optJSONObject(i) ?: continue
+        if (qj.optString("id") == processingJob.optString("id")) {
+          currentQueue.put(i, processingJob)
+          break
+        }
+      }
+      persistPrintQueue(currentQueue)
+
       try {
         val mode = processingJob.optString("mode", "initial")
         val orderId = processingJob.optString("order_id")
@@ -1031,18 +1164,41 @@ class NativeConfigStore(private val context: Context) {
 
         validatePrinterTarget(processingJob)
         
-        // 1. Render ESC/POS Payload
-        val language = readStore().optString("language", "en")
-        val payload = ReceiptRenderer.renderOrder(
-          order, 
-          if (order.optString("status") == "voided") "VOID" else "INTERNAL",
-          language
-        )
+        // 1. Resolve Copy Count
+        val variant = if (order.optString("status") == "voided") "VOID" else "INTERNAL"
+        var copyCount = 1
+        val settings = readSettings()
+        for (i in 0 until settings.length()) {
+          val s = settings.optJSONObject(i) ?: continue
+          if (s.optString("key") == "receipt.copies") {
+            val v = s.optJSONObject("value")
+            if (v?.optInt("version") == 1) {
+              val copiesArr = v.optJSONArray("copies") ?: JSONArray()
+              for (j in 0 until copiesArr.length()) {
+                val c = copiesArr.optJSONObject(j) ?: continue
+                if (c.optString("variant") == variant) {
+                  copyCount = c.optInt("count", 1)
+                  break
+                }
+              }
+            }
+            break
+          }
+        }
 
-        // 2. Send to Printer
+        // 2. Render ESC/POS Payload
+        val store = readStore()
+        val language = store.optString("language", "en")
+        val currency = store.optString("currency", "USD")
+        val payload = ReceiptRenderer.renderOrder(order, variant, language, currency)
+
+        // 3. Send to Printer (multiple times if copies > 1)
         val host = processingJob.optString("host")
         val port = processingJob.optInt("port", 9100)
-        PrinterTransport.sendRawBytes(host, port, payload)
+        
+        for (c in 0 until copyCount.coerceAtLeast(1)) {
+          PrinterTransport.sendRawBytes(host, port, payload)
+        }
 
         incrementOrderPrint(orderId, now)
 
@@ -1240,6 +1396,16 @@ class NativeConfigStore(private val context: Context) {
     }
 
     persistOrders(updated)
+  }
+
+  private fun findShiftById(shifts: JSONArray, shiftId: String): JSONObject? {
+    for (index in 0 until shifts.length()) {
+      val shift = shifts.optJSONObject(index) ?: continue
+      if (shift.optString("id") == shiftId) {
+        return shift
+      }
+    }
+    return null
   }
 
   private fun findOrderById(orders: JSONArray, orderId: String): JSONObject? {
@@ -1452,14 +1618,17 @@ class NativeConfigStore(private val context: Context) {
     persistShifts(updated)
 
     // Enqueue background report action
-    enqueuePendingAction(ACTION_TYPE_SHIFT_REPORT, JSONObject()
-      .put("action", "close_day")
+    val dateStr = LocalDate.now().toString()
+    enqueuePendingAction(ACTION_TYPE_DAY_CLOSE_REPORT, JSONObject()
+      .put("action", "day_close")
+      .put("date", dateStr)
       .put("closed_count", closedCount)
       .put("timestamp", now))
 
     return JSONObject()
       .put("message", "Closed $closedCount shift(s).")
       .put("closed_count", closedCount)
+      .put("date", dateStr)
   }
 
   fun readCloudSyncSettings(): JSONObject {
@@ -1631,7 +1800,41 @@ class NativeConfigStore(private val context: Context) {
 
     actions.put(action)
     persistPendingActions(actions)
+
+    // Trigger immediate background sweep
+    try {
+        val workManager = WorkManager.getInstance(context)
+        val fastSweep = OneTimeWorkRequestBuilder<PrintQueueWorker>()
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+        workManager.enqueueUniqueWork("fast-sweep", ExistingWorkPolicy.REPLACE, fastSweep)
+    } catch (e: Exception) {
+        Log.w("NativeConfigStore", "Failed to trigger fast-sweep worker: ${e.message}")
+    }
+
     return action
+  }
+
+  fun getTelegramSettings(): JSONObject {
+    val settings = readSettings()
+    for (i in 0 until settings.length()) {
+      val s = settings.optJSONObject(i) ?: continue
+      if (s.optString("key") == "telegram.intents") {
+        return s.optJSONObject("value") ?: JSONObject()
+      }
+    }
+    return JSONObject()
+  }
+
+  fun getTelegramToken(): String {
+    val settings = readSettings()
+    for (i in 0 until settings.length()) {
+      val s = settings.optJSONObject(i) ?: continue
+      if (s.optString("key") == "telegram.token") {
+        return s.optString("value", "")
+      }
+    }
+    return ""
   }
 
   fun processPendingActions(context: String = "manual", maxAttemptsPerRun: Int = 20): JSONObject {
@@ -1670,9 +1873,79 @@ class NativeConfigStore(private val context: Context) {
             Log.d("PendingAction", "Processing Cloud Sync action: $payload")
             // Simulate success for now
           }
+          ACTION_TYPE_ORDER_REPORT -> {
+            val orderId = payload.optString("order_id")
+            val order = findOrderById(readOrders(), orderId)
+            if (order != null) {
+              val token = getTelegramToken()
+              val settings = getTelegramSettings()
+              val intents = settings.optJSONArray("intents") ?: JSONArray()
+              var chatId = ""
+              for (i in 0 until intents.length()) {
+                val intent = intents.optJSONObject(i) ?: continue
+                if (intent.optString("intent") == "ORDER_TRACKER" && intent.optBoolean("enabled", false)) {
+                  chatId = intent.optString("chat_id")
+                  break
+                }
+              }
+              if (token.isNotBlank() && chatId.isNotBlank()) {
+                val store = readStore()
+                val lang = store.optString("language", "en")
+                val curr = store.optString("currency", "USD")
+                val message = TelegramFormatter.formatOrderMessage(order, status == ACTION_STATUS_RETRYING, lang, curr)
+                TelegramReporter.sendMessage(token, chatId, message)
+              }
+            }
+          }
           ACTION_TYPE_SHIFT_REPORT -> {
-            // Placeholder for Shift Report logic (e.g. sending to Telegram or Cloud)
-            Log.d("PendingAction", "Processing Shift Report action: $payload")
+            val action = payload.optString("action")
+            if (action == "close") {
+              val shiftId = payload.optString("shift_id")
+              val shift = findShiftById(readShifts(), shiftId)
+              if (shift != null) {
+                val enrichedShift: JSONObject = JSONObject(shift.toString()).put("summary", computeShiftSummary(shiftId))
+                val token = getTelegramToken()
+                val settings = getTelegramSettings()
+                val intents = settings.optJSONArray("intents") ?: JSONArray()
+                var chatId = ""
+                for (i in 0 until intents.length()) {
+                  val intent = intents.optJSONObject(i) ?: continue
+                  if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
+                    chatId = intent.optString("chat_id")
+                    break
+                  }
+                }
+                if (token.isNotBlank() && chatId.isNotBlank()) {
+                  val store = readStore()
+                  val lang = store.optString("language", "en")
+                  val curr = store.optString("currency", "USD")
+                  val message = TelegramFormatter.formatShiftCloseMessage(enrichedShift, status == ACTION_STATUS_RETRYING, lang, curr)
+                  TelegramReporter.sendMessage(token, chatId, message)
+                }
+              }
+            }
+          }
+          ACTION_TYPE_DAY_CLOSE_REPORT -> {
+            val date = payload.optString("date", LocalDate.now().toString())
+            val daySummary = computeDaySummary(date)
+            val token = getTelegramToken()
+            val settings = getTelegramSettings()
+            val intents = settings.optJSONArray("intents") ?: JSONArray()
+            var chatId = ""
+            for (i in 0 until intents.length()) {
+              val intent = intents.optJSONObject(i) ?: continue
+              if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
+                chatId = intent.optString("chat_id")
+                break
+              }
+            }
+            if (token.isNotBlank() && chatId.isNotBlank()) {
+              val store = readStore()
+              val lang = store.optString("language", "en")
+              val curr = store.optString("currency", "USD")
+              val message = TelegramFormatter.formatDayCloseMessage(daySummary, lang, curr)
+              TelegramReporter.sendMessage(token, chatId, message)
+            }
           }
           else -> {
             Log.w("PendingAction", "Unknown action type: $type")
@@ -1967,6 +2240,14 @@ class NativeConfigStore(private val context: Context) {
         category = "Cloud Sync",
         description = "Cloud ingestion configuration (toggle, key, base URL)."
       ))
+      .put(buildSettingRecord(
+        id = "android-telegram-token",
+        key = "telegram.token",
+        value = "",
+        valueType = "string",
+        category = "Integrations",
+        description = "Telegram Bot API Token"
+      ))
   }
 
   private fun buildDefaultMenuCategories(): JSONArray {
@@ -2246,9 +2527,11 @@ class NativeConfigStore(private val context: Context) {
     private const val PRINT_JOB_DUPLICATE_PREVENTED = "duplicate_prevented"
     private const val PRINT_JOB_DEAD_LETTER = "dead_letter"
 
-    private const val ACTION_TYPE_PRINT = "PRINT"
-    private const val ACTION_TYPE_CLOUD_SYNC = "CLOUD_SYNC"
-    private const val ACTION_TYPE_SHIFT_REPORT = "SHIFT_REPORT"
+    internal const val ACTION_TYPE_PRINT = "PRINT"
+    internal const val ACTION_TYPE_CLOUD_SYNC = "CLOUD_SYNC"
+    internal const val ACTION_TYPE_ORDER_REPORT = "ORDER_REPORT"
+    internal const val ACTION_TYPE_SHIFT_REPORT = "SHIFT_REPORT"
+    internal const val ACTION_TYPE_DAY_CLOSE_REPORT = "DAY_CLOSE_REPORT"
 
     private const val ACTION_STATUS_PENDING = "pending"
     private const val ACTION_STATUS_RETRYING = "retrying"

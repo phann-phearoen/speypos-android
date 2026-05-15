@@ -74,7 +74,7 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-full bg-background flex flex-col">
       {/* Header */}
       <header className="h-14 bg-pos-header text-pos-header-foreground flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
@@ -115,7 +115,7 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
         <aside className="w-56 bg-card border-r border-border shrink-0">
           <nav className="p-3 space-y-1">

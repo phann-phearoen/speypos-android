@@ -134,6 +134,7 @@ export default function PaymentPage() {
     customer_type: customerType,
     items: orderItems.map((item) => ({
       menu_item_id: item.menu_item_id,
+      menu_item_name: item.menu_item_name,
       quantity: item.quantity,
       unit_price: item.unit_price,
       customizations: item.customizations.map((c) => ({

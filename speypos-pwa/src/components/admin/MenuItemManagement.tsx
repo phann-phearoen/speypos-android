@@ -447,11 +447,11 @@ export function MenuItemManagement() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="admin-crud-dialog sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingItem ? t('admin.menuItems.edit') : t('admin.menuItems.addTitle')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4 max-h-[80vh] overflow-y-auto">
+          <div className="admin-crud-dialog-body space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('admin.menuItems.name')}</label>
               <Input
@@ -528,7 +528,7 @@ export function MenuItemManagement() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsFormOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : editingItem ? t('common.update') : t('common.create')}
@@ -539,14 +539,16 @@ export function MenuItemManagement() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('admin.menuItems.delete')}</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">
-            {t('admin.menuItems.deleteConfirm')} <span className="font-medium text-foreground">{deletingItem?.name}</span>? {t('admin.menuItems.deleteWarning')}
-          </p>
-          <DialogFooter>
+          <div className="admin-crud-dialog-body py-4">
+            <p className="text-muted-foreground">
+              {t('admin.menuItems.deleteConfirm')} <span className="font-medium text-foreground">{deletingItem?.name}</span>? {t('admin.menuItems.deleteWarning')}
+            </p>
+          </div>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>{t('common.cancel')}</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.delete')}

@@ -354,7 +354,7 @@ export function OrderHistoryManagement() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {shift.staff.name || getStaffName(shift.staff_id)}
+                          {shift.staff?.name || shift.staff_name || getStaffName(shift.staff_id)}
                         </p>
                       </div>
                     </div>
@@ -696,7 +696,7 @@ export function OrderHistoryManagement() {
         open={!!selectedOrder}
         onOpenChange={() => setSelectedOrder(null)}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {t('admin.orderHistory.orderDetails')} #{selectedOrder?.id?.slice(-6).toUpperCase()}
@@ -704,7 +704,7 @@ export function OrderHistoryManagement() {
           </DialogHeader>
 
           {selectedOrder && (
-            <div className="space-y-4">
+            <div className="admin-crud-dialog-body space-y-4 py-2">
               {/* Order Info */}
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="text-muted-foreground">{t('admin.orderHistory.time')}:</div>

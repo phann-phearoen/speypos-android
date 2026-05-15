@@ -514,10 +514,10 @@ export function SettingsManagement() {
       </div>
 
       <Dialog open={isShowingDeadLetters} onOpenChange={setIsShowingDeadLetters}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <div className="p-6">
+        <DialogContent className="admin-crud-dialog sm:max-w-2xl">
+          <div className="flex min-h-0 flex-1 flex-col p-6">
             <h2 className="text-lg font-semibold">Dead Letter Details</h2>
-            <div className="mt-4 space-y-4 overflow-y-auto max-h-[50vh]">
+            <div className="admin-crud-dialog-body mt-4 space-y-4">
               {deadLetterDetails?.print_jobs.map((job: any) => (
                 <div key={job.id} className="p-3 border rounded text-xs">
                   <div className="font-bold">Print Job: {job.order_id}</div>
@@ -534,7 +534,7 @@ export function SettingsManagement() {
                 </div>
               ))}
             </div>
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="admin-crud-dialog-footer mt-6 flex justify-end gap-2">
               <Button onClick={() => setIsShowingDeadLetters(false)} variant="outline">Close</Button>
             </div>
           </div>

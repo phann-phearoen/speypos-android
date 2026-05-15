@@ -95,73 +95,92 @@ export default function AdminLogin() {
       </header>
 
       {/* Login Form */}
-      <main className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <div className="bg-card rounded-2xl shadow-elegant p-8 border border-border">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-primary" />
+      <main className="admin-login-shell flex-1 flex items-center justify-center overflow-auto p-4 sm:p-6">
+        <div className="w-full max-w-5xl">
+          <div className="admin-login-card grid overflow-hidden rounded-2xl border border-border bg-card shadow-elegant lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <section className="hidden border-r border-border bg-muted/40 p-8 lg:flex lg:flex-col lg:justify-between">
+              <div>
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+                  <Lock className="h-7 w-7 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground">Admin Access</h2>
+                <p className="mt-3 max-w-xs text-sm text-muted-foreground">
+                  Secure management access for store configuration, catalog updates, and operational controls.
+                </p>
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Admin Login</h1>
-              <p className="text-muted-foreground mt-2">
-                Enter your credentials to access management
-              </p>
-            </div>
+              <div className="text-xs text-muted-foreground">
+                Optimized for tablet landscape usage with on-screen keyboard.
+              </div>
+            </section>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {error && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
+            <section className="p-6 sm:p-8">
+              <div className="mb-6 text-center lg:text-left">
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 lg:mx-0 lg:hidden">
+                  <Lock className="h-7 w-7 text-primary" />
                 </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Name</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your name"
-                    className="pl-10 h-12 text-base"
-                    autoComplete="username"
-                    autoFocus
-                  />
-                </div>
+                <h1 className="text-2xl font-bold text-foreground">Admin Login</h1>
+                <p className="mt-2 text-muted-foreground">
+                  Enter your credentials to access management
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="pl-10 h-12 text-base"
-                    autoComplete="current-password"
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full h-14 text-lg font-semibold"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
+              <form onSubmit={handleSubmit} className="admin-login-form space-y-5">
+                {error && (
+                  <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
                 )}
-              </Button>
-            </form>
+
+                <div className="grid gap-4 lg:grid-cols-2 lg:gap-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Enter your name"
+                        className="admin-login-input h-12 pl-10 text-base"
+                        autoComplete="username"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="admin-login-input h-12 pl-10 text-base"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="admin-login-submit h-14 w-full text-lg font-semibold"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+              </form>
+            </section>
           </div>
         </div>
       </main>

@@ -313,8 +313,88 @@
 }
 
 @layer utilities {
+  .keyboard-safe-dialog-content {
+    width: min(96vw, 42rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .admin-login-shell {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .admin-login-card {
+    max-height: calc(100dvh - 5.5rem);
+  }
+
+  .admin-crud-dialog {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    width: min(96vw, 44rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .admin-crud-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .admin-crud-dialog-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: auto;
+    border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+    padding-top: 0.75rem;
+  }
+
   .touch-target {
     min-height: var(--touch-target);
     min-width: var(--touch-target);
+  }
+
+  @media (orientation: landscape) and (max-height: 820px) {
+    .keyboard-safe-dialog-content {
+      top: max(0.75rem, env(safe-area-inset-top)) !important;
+      transform: translateX(-50%) !important;
+      max-height: calc(100dvh - 1.25rem);
+    }
+
+    .admin-login-shell {
+      align-items: flex-start;
+      padding-top: 1rem;
+    }
+
+    .admin-login-card {
+      max-height: calc(100dvh - 7rem);
+      overflow: auto;
+    }
+
+    .admin-login-form {
+      gap: 0.875rem;
+    }
+
+    .admin-login-card .admin-login-input {
+      height: 2.75rem;
+    }
+
+    .admin-login-card .admin-login-submit {
+      height: 3rem;
+      font-size: 1rem;
+    }
+
+    .admin-crud-dialog {
+      width: min(98vw, 56rem);
+      max-height: calc(100dvh - 1rem);
+    }
+
+    .admin-crud-dialog-footer {
+      padding-top: 0.5rem;
+    }
   }
 }

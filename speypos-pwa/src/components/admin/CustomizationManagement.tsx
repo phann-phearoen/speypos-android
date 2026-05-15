@@ -415,11 +415,11 @@ export function CustomizationManagement() {
 
       {/* Group Create/Edit Dialog */}
       <Dialog open={isGroupFormOpen} onOpenChange={setIsGroupFormOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingGroup ? t('admin.customizations.editGroup') : t('admin.customizations.createGroup')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="admin-crud-dialog-body space-y-4 py-4">
             <div className="space-y-2">
               <Label>{t('admin.menuItems.name')}</Label>
               <Input
@@ -456,7 +456,7 @@ export function CustomizationManagement() {
               </Label>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsGroupFormOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleGroupSubmit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : editingGroup ? t('common.update') : t('common.create')}
@@ -467,15 +467,17 @@ export function CustomizationManagement() {
 
       {/* Group Delete Dialog */}
       <Dialog open={isGroupDeleteOpen} onOpenChange={setIsGroupDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('admin.customizations.deleteGroup')}</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">
-            {t('admin.customizations.deleteGroupConfirm')} <span className="font-medium text-foreground">{deletingGroup?.name}</span>?
-            {' '}{t('admin.customizations.deleteGroupWarning')}
-          </p>
-          <DialogFooter>
+          <div className="admin-crud-dialog-body py-4">
+            <p className="text-muted-foreground">
+              {t('admin.customizations.deleteGroupConfirm')} <span className="font-medium text-foreground">{deletingGroup?.name}</span>?
+              {' '}{t('admin.customizations.deleteGroupWarning')}
+            </p>
+          </div>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsGroupDeleteOpen(false)}>{t('common.cancel')}</Button>
             <Button variant="destructive" onClick={handleGroupDelete} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.delete')}
@@ -486,11 +488,11 @@ export function CustomizationManagement() {
 
       {/* Option Create/Edit Dialog */}
       <Dialog open={isOptionFormOpen} onOpenChange={setIsOptionFormOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingOption ? t('admin.customizations.editOption') : t('admin.customizations.addOption')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="admin-crud-dialog-body space-y-4 py-4">
             <div className="space-y-2">
               <Label>{t('admin.customizations.label')}</Label>
               <Input
@@ -526,7 +528,7 @@ export function CustomizationManagement() {
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsOptionFormOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleOptionSubmit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : editingOption ? t('common.update') : t('common.add')}
@@ -537,15 +539,17 @@ export function CustomizationManagement() {
 
       {/* Option Delete Dialog */}
       <Dialog open={isOptionDeleteOpen} onOpenChange={setIsOptionDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('admin.customizations.deleteOption')}</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">
-            {t('admin.customizations.deleteOptionConfirm')} <span className="font-medium text-foreground">{deletingOption?.label}</span>?
-            {' '}{t('admin.customizations.deleteOptionWarning')}
-          </p>
-          <DialogFooter>
+          <div className="admin-crud-dialog-body py-4">
+            <p className="text-muted-foreground">
+              {t('admin.customizations.deleteOptionConfirm')} <span className="font-medium text-foreground">{deletingOption?.label}</span>?
+              {' '}{t('admin.customizations.deleteOptionWarning')}
+            </p>
+          </div>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsOptionDeleteOpen(false)}>{t('common.cancel')}</Button>
             <Button variant="destructive" onClick={handleOptionDelete} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.delete')}

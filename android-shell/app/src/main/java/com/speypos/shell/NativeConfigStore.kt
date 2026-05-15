@@ -758,16 +758,30 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun readShifts(): JSONArray {
-    val preferences = getPreferences()
-    val raw = preferences.getString(PREF_NATIVE_SHIFTS_JSON, null) ?: return buildDefaultShifts()
+    val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
+    val staff = readStaff()
 
-    return try {
-      JSONArray(raw)
-    } catch (_: Exception) {
-      val fallback = buildDefaultShifts()
-      preferences.edit().putString(PREF_NATIVE_SHIFTS_JSON, fallback.toString()).apply()
-      fallback
+    val enriched = JSONArray()
+    for (i in 0 until shifts.length()) {
+      val shift = shifts.optJSONObject(i) ?: continue
+      val staffId = shift.optString("staff_id")
+
+      // Find staff details
+      var staffObj: JSONObject? = null
+      for (j in 0 until staff.length()) {
+        val s = staff.optJSONObject(j) ?: continue
+        if (s.optString("id") == staffId) {
+          staffObj = s
+          break
+        }
+      }
+
+      val enrichedShift = JSONObject(shift.toString())
+        .put("staff", staffObj ?: JSONObject.NULL)
+        .put("staff_name", staffObj?.optString("name") ?: "")
+      enriched.put(enrichedShift)
     }
+    return enriched
   }
 
   fun readStaff(): JSONArray {
@@ -784,16 +798,28 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun readOrders(): JSONArray {
-    val preferences = getPreferences()
-    val raw = preferences.getString(PREF_NATIVE_ORDERS_JSON, null) ?: return buildDefaultOrders()
+    val orders = readArray(PREF_NATIVE_ORDERS_JSON)
+    val staff = readStaff()
 
-    return try {
-      JSONArray(raw)
-    } catch (_: Exception) {
-      val fallback = buildDefaultOrders()
-      preferences.edit().putString(PREF_NATIVE_ORDERS_JSON, fallback.toString()).apply()
-      fallback
+    val enriched = JSONArray()
+    for (i in 0 until orders.length()) {
+      val order = orders.optJSONObject(i) ?: continue
+      val staffId = order.optString("staff_id")
+
+      // Find staff name
+      var staffName = ""
+      for (j in 0 until staff.length()) {
+        val s = staff.optJSONObject(j) ?: continue
+        if (s.optString("id") == staffId) {
+          staffName = s.optString("name")
+          break
+        }
+      }
+
+      val enrichedOrder = JSONObject(order.toString()).put("staff_name", staffName)
+      enriched.put(enrichedOrder)
     }
+    return enriched
   }
 
   fun createOrder(payload: JSONObject): JSONObject {

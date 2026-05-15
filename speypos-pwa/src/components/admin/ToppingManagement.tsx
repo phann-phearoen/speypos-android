@@ -403,11 +403,11 @@ export function ToppingManagement() {
 
       {/* Group Create/Edit Dialog */}
       <Dialog open={isGroupFormOpen} onOpenChange={setIsGroupFormOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingGroup ? t('admin.toppings.editGroup') : t('admin.toppings.createGroup')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="admin-crud-dialog-body space-y-4 py-4">
             <div className="space-y-2">
               <Label>{t('admin.menuItems.name')}</Label>
               <Input
@@ -433,7 +433,7 @@ export function ToppingManagement() {
               <Label htmlFor="required">{t('common.required')}</Label>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsGroupFormOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleGroupSubmit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingGroup ? t('common.update') : t('common.create'))}
@@ -444,17 +444,19 @@ export function ToppingManagement() {
 
       {/* Group Delete Dialog */}
       <Dialog open={isGroupDeleteOpen} onOpenChange={setIsGroupDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('admin.toppings.deleteGroup')}</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">
-            {t('admin.toppings.deleteGroupConfirm')}
-          </p>
-          <p className="text-sm text-destructive">
-            {t('admin.toppings.deleteGroupWarning')}
-          </p>
-          <DialogFooter>
+          <div className="admin-crud-dialog-body space-y-3 py-4">
+            <p className="text-muted-foreground">
+              {t('admin.toppings.deleteGroupConfirm')}
+            </p>
+            <p className="text-sm text-destructive">
+              {t('admin.toppings.deleteGroupWarning')}
+            </p>
+          </div>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsGroupDeleteOpen(false)}>{t('common.cancel')}</Button>
             <Button variant="destructive" onClick={handleGroupDelete} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.delete')}
@@ -465,11 +467,11 @@ export function ToppingManagement() {
 
       {/* Option Create/Edit Dialog */}
       <Dialog open={isOptionFormOpen} onOpenChange={setIsOptionFormOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingOption ? t('admin.toppings.editOption') : t('admin.toppings.addOption')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="admin-crud-dialog-body space-y-4 py-4">
             <div className="space-y-2">
               <Label>{t('admin.toppings.label')}</Label>
               <Input
@@ -544,7 +546,7 @@ export function ToppingManagement() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsOptionFormOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleOptionSubmit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingOption ? t('common.update') : t('common.create'))}
@@ -555,14 +557,16 @@ export function ToppingManagement() {
 
       {/* Option Delete Dialog */}
       <Dialog open={isOptionDeleteOpen} onOpenChange={setIsOptionDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="admin-crud-dialog sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('admin.toppings.deleteOption')}</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">
-            {t('admin.toppings.deleteOptionConfirm')}
-          </p>
-          <DialogFooter>
+          <div className="admin-crud-dialog-body py-4">
+            <p className="text-muted-foreground">
+              {t('admin.toppings.deleteOptionConfirm')}
+            </p>
+          </div>
+          <DialogFooter className="admin-crud-dialog-footer">
             <Button variant="outline" onClick={() => setIsOptionDeleteOpen(false)}>{t('common.cancel')}</Button>
             <Button variant="destructive" onClick={handleOptionDelete} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.delete')}

@@ -210,6 +210,15 @@ export interface PendingActionsStatus {
     dead_letter_jobs: number;
     next_attempt_at: number | null;
   };
+  genericActionsPending?: {
+    total_actions: number;
+    pending_actions: number;
+    retrying_actions: number;
+    processing_actions: number;
+    succeeded_actions: number;
+    dead_letter_actions: number;
+    next_attempt_at: number | null;
+  };
   hasUnreportedOrders: boolean;
   unreportedOrdersCount: number;
   hasUnreportedShifts: boolean;
@@ -234,6 +243,15 @@ export interface RuntimeStatus {
     succeeded_jobs: number;
     duplicate_prevented_jobs: number;
     dead_letter_jobs: number;
+    next_attempt_at: number | null;
+  };
+  pendingActions?: {
+    total_actions: number;
+    pending_actions: number;
+    retrying_actions: number;
+    processing_actions: number;
+    succeeded_actions: number;
+    dead_letter_actions: number;
     next_attempt_at: number | null;
   };
   lastRecoveryRun: {
@@ -368,4 +386,9 @@ export interface StoreUpdate {
   logo_url?: string;
   address?: string;
   payment_profile?: PaymentProfileV1;
+}
+
+export interface DeadLetterDetails {
+  print_jobs: any[];
+  generic_actions: any[];
 }

@@ -4,8 +4,10 @@ import { ArrowLeft, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
-import { authApi } from '@/lib/api';
+import { getAuthCompatibilityProvider } from '@/lib/compatibility/auth';
 import { useToast } from '@/hooks/use-toast';
+
+const authCompatibility = getAuthCompatibilityProvider();
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -45,10 +47,10 @@ export default function AdminLogin() {
     setIsLoading(true);
     
     try {
-      const response = await authApi.login(name.trim(), password);
+      const response = await authCompatibility.login(name.trim(), password);
       
       if (response.error) {
-        setError('Invalid credentials. Please try again.');
+        setError(response.error === 'Invalid credentials' ? 'Invalid credentials. Please try again.' : response.error);
         return;
       }
 

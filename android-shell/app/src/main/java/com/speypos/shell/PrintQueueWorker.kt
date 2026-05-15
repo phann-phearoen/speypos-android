@@ -15,10 +15,13 @@ class PrintQueueWorker(
 
     return try {
       store.processPrintQueue(context = "worker", maxAttemptsPerRun = 50)
-      val summary = store.getPrintQueueStatus()
-      val pending = summary.optInt("pending_jobs", 0) + summary.optInt("retrying_jobs", 0)
-
-      if (pending > 0) {
+      store.processPendingActions(context = "worker", maxAttemptsPerRun = 50)
+      
+      val printSummary = store.getPrintQueueStatus()
+      val pendingPrint = printSummary.optInt("pending_jobs", 0) + printSummary.optInt("retrying_jobs", 0)
+      
+      // We could add a getPendingActionsStatus() later
+      if (pendingPrint > 0) {
         Result.retry()
       } else {
         Result.success()

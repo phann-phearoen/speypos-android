@@ -1,0 +1,166 @@
+version: 1
+generated_at: 2026-05-14
+scope: admin-managed core menu endpoints
+base_url:
+  api_prefix: /api
+  mount_source: speypos-local/src/server/httpServer.js
+
+backend_structure_summary:
+  routes:
+    menu_item: speypos-local/src/routes/menu-item.routes.js
+    menu_category: speypos-local/src/routes/menu-category.routes.js
+    menu_item_category_map: speypos-local/src/routes/menu-item-category-map.routes.js
+  controllers:
+    menu_item: speypos-local/src/controllers/menu-item.controller.js
+    menu_category: speypos-local/src/controllers/menu-category.controller.js
+    menu_item_category_map: speypos-local/src/controllers/menu-item-category-map.controller.js
+  repositories:
+    menu_item: speypos-local/src/storage/repositories/menu-item.repo.js
+    menu_category: speypos-local/src/storage/repositories/menu-category.repo.js
+    menu_item_category_map: speypos-local/src/storage/repositories/menu-item-category-map.repo.js
+
+id_format:
+  type: uuid
+  generation: server_generated_via_randomUUID
+  notes:
+    - IDs are string UUIDs created server-side for POST creates.
+
+resources:
+  menu-item:
+    endpoint_paths:
+      list: GET /api/menu-item
+      get_one: GET /api/menu-item/:id
+      create: POST /api/menu-item
+      update: PATCH /api/menu-item/:id
+      delete: DELETE /api/menu-item/:id
+    auth:
+      create_update_delete: admin_required
+      read: public
+    request_payloads:
+      create_post:
+        required:
+          - name: string
+          - price: number
+        optional:
+          - image_url: string|null
+        server_added:
+          - id: uuid
+          - created_at: number_ms_epoch
+      update_patch:
+        required: []
+        notes:
+          - Partial update is supported.
+          - Empty body returns 400.
+        accepted_fields:
+          - name: string
+          - price: number
+          - image_url: string|null
+        server_added:
+          - updated_at: number_ms_epoch
+    success_responses:
+      create_post:
+        status: 201
+        returns_full_object: true
+        shape:
+          - id: uuid
+          - name: string
+          - price: number
+          - image_url: string|null
+          - created_at: number_ms_epoch
+          - updated_at: number_ms_epoch|null
+          - category_ids: string[]
+      update_patch:
+        status: 200
+        returns_full_object: true
+        shape:
+          - id: uuid
+          - name: string
+          - price: number
+          - image_url: string|null
+          - created_at: number_ms_epoch
+          - updated_at: number_ms_epoch|null
+          - category_ids: string[]
+
+  menu-category:
+    endpoint_paths:
+      list: GET /api/menu-category
+      get_one: GET /api/menu-category/:id
+      create: POST /api/menu-category
+      update: PATCH /api/menu-category/:id
+      delete: DELETE /api/menu-category/:id
+    auth:
+      create_update_delete: admin_required
+      read: public
+    request_payloads:
+      create_post:
+        required:
+          - name: string
+        optional:
+          - image_url: string|null
+          - sort_order: number (default 0)
+        server_added:
+          - id: uuid
+          - created_at: number_ms_epoch
+      update_patch:
+        required: []
+        notes:
+          - Partial update is supported.
+          - Empty body returns 400.
+        accepted_fields:
+          - name: string
+          - image_url: string|null
+          - sort_order: number
+    success_responses:
+      create_post:
+        status: 201
+        returns_full_object: true
+        shape:
+          - id: uuid
+          - name: string
+          - image_url: string|null
+          - sort_order: number
+          - created_at: number_ms_epoch
+      update_patch:
+        status: 200
+        returns_full_object: true
+        shape:
+          - id: uuid
+          - name: string
+          - image_url: string|null
+          - sort_order: number
+          - created_at: number_ms_epoch
+
+  menu-item-category-map:
+    endpoint_paths:
+      list: GET /api/menu-item-category-map
+      create: POST /api/menu-item-category-map
+      delete: DELETE /api/menu-item-category-map/:id
+    auth:
+      create_delete: not_admin_guarded_in_current_route
+      read: public
+    request_payloads:
+      create_post:
+        required:
+          - menu_item_id: uuid
+          - menu_category_id: uuid
+        optional: []
+        server_added:
+          - id: uuid
+      update_patch_or_put:
+        supported: false
+        notes:
+          - No PATCH or PUT endpoint exists for this resource.
+          - To change mapping, client should DELETE old map and POST a new map.
+    success_responses:
+      create_post:
+        status: 201
+        returns_full_object: true
+        shape:
+          - id: uuid
+          - menu_item_id: uuid
+          - menu_category_id: uuid
+
+notes:
+  - Menu item create/update responses include category_ids from serializer.
+  - Menu category create/update responses currently return repository object directly (not enriched serializer shape).
+  - This file reflects current implementation behavior, not desired future API redesign.

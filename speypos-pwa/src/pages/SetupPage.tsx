@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { setupApi, systemApi } from '@/lib/api';
+import { systemApi } from '@/lib/api';
+import { getSystemCompatibilityProvider } from '@/lib/compatibility/system';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +32,8 @@ const LANGUAGE_OPTIONS = [
   { code: 'en', name: 'English' },
   { code: 'km', name: 'Khmer (ភាសាខ្មែរ)' },
 ];
+
+const systemCompatibility = getSystemCompatibilityProvider();
 
 type SetupState = 'form' | 'complete' | 'rebooting';
 
@@ -95,7 +98,7 @@ export function SetupPage({ onComplete, connectionError, onRetry }: SetupPagePro
     setIsSubmitting(true);
 
     try {
-      const { error } = await setupApi.initialize({
+      const { error } = await systemCompatibility.initialize({
         admin_user: {
           name: username.trim(),
           password: password,

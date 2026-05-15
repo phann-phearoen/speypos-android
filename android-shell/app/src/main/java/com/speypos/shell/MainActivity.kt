@@ -15,6 +15,10 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.webkit.WebViewAssetLoader
+import kotlinx.coroutines.launch
+import androidx.webkit.WebViewAssetLoader.AssetsPathHandler
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -35,11 +39,19 @@ class MainActivity : AppCompatActivity() {
   private val configStore by lazy { NativeConfigStore(applicationContext) }
   private val nativeBridge by lazy { SpeyposNativeBridge(configStore, runtimeState) }
 
+  private val assetLoader by lazy {
+    WebViewAssetLoader.Builder()
+      .setDomain(VIRTUAL_DOMAIN)
+      .addPathHandler("/web/", AssetsPathHandler(this))
+      .build()
+  }
+
   @SuppressLint("SetJavaScriptEnabled")
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     binding = ActivityMainBinding.inflate(layoutInflater)
     setContentView(binding.root)
+    
     configStore.seedIfNeeded()
     schedulePrintQueueWorkers()
 
@@ -51,7 +63,24 @@ class MainActivity : AppCompatActivity() {
       loadFrontend()
     }
 
+    observeRuntimeActions()
     loadFrontend()
+  }
+
+  private fun observeRuntimeActions() {
+    lifecycleScope.launchWhenStarted {
+      runtimeState.actions.collect { action ->
+        Log.d("SpeyposLifecycle", "Received shell action: $action")
+        when (action) {
+          ShellAction.RELOAD_FRONTEND -> {
+            mainHandler.post { loadFrontend() }
+          }
+          ShellAction.RECREATE_ACTIVITY -> {
+            mainHandler.post { recreate() }
+          }
+        }
+      }
+    }
   }
 
   override fun onPause() {
@@ -77,8 +106,6 @@ class MainActivity : AppCompatActivity() {
       databaseEnabled = true
       allowFileAccess = true
       allowContentAccess = true
-      allowFileAccessFromFileURLs = true
-      allowUniversalAccessFromFileURLs = true
       javaScriptCanOpenWindowsAutomatically = false
       mediaPlaybackRequiresUserGesture = false
       cacheMode = WebSettings.LOAD_DEFAULT
@@ -98,11 +125,18 @@ class MainActivity : AppCompatActivity() {
         request: WebResourceRequest?
       ): WebResourceResponse? {
         val url = request?.url ?: return null
-        Log.d("SpeyposIntercept", "Request: ${url.host}:${url.port}${url.path}")
-        if (url.host == "127.0.0.1" && url.port == 8080) {
-          Log.d("SpeyposIntercept", "Intercepting: ${url.path}")
-          return handleNativeApiRequest(request)
+        
+        // 1. Handle native API calls on the same virtual domain first to avoid asset loader collisions
+        if (url.host == VIRTUAL_DOMAIN && url.path?.startsWith("/api/") == true) {
+          Log.d("SpeyposIntercept", "Intercepting API: ${url.path}")
+          val apiResponse = handleNativeApiRequest(request)
+          if (apiResponse != null) return apiResponse
         }
+
+        // 2. Try to load from assets via AssetLoader
+        val assetResponse = assetLoader.shouldInterceptRequest(url)
+        if (assetResponse != null) return assetResponse
+
         return super.shouldInterceptRequest(view, request)
       }
 
@@ -127,17 +161,39 @@ class MainActivity : AppCompatActivity() {
 
   private fun handleNativeApiRequest(request: WebResourceRequest): WebResourceResponse? {
     val path = request.url.path ?: return null
-    if (!path.startsWith("/api/")) return null
+    
+    if (request.method == "OPTIONS") {
+      return WebResourceResponse(
+        "text/plain",
+        "UTF-8",
+        204,
+        "No Content",
+        mapOf(
+          "Access-Control-Allow-Origin" to "*",
+          "Access-Control-Allow-Methods" to "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers" to "Content-Type, Authorization, X-Requested-With",
+          "Access-Control-Max-Age" to "3600"
+        ),
+        ByteArrayInputStream(ByteArray(0))
+      )
+    }
 
     val jsonResponse = when {
       path == "/api/setup/status" || path == "/api/system/setup-status" -> nativeBridge.getSetupStatus()
+      path == "/api/auth/login" -> "{}" // Handled via Bridge directly by PWA, this is just to prevent 404/Timeout
       path == "/api/store" -> nativeBridge.getStore()
+      path.startsWith("/api/store") || path.startsWith("/api/settings") -> "{\"data\":{}}"
       path == "/api/settings" || path == "/api/all-settings" -> nativeBridge.getAllSettings()
+      path == "/api/cloud-sync-settings" -> nativeBridge.getCloudSyncSettings()
       path == "/api/staff" -> nativeBridge.getStaff()
       path == "/api/shifts" -> nativeBridge.getShifts()
       path == "/api/orders" -> nativeBridge.getOrders()
       path == "/api/menu-categories" -> nativeBridge.getMenuCategories()
       path == "/api/menu-items" -> nativeBridge.getMenuItems()
+      path.startsWith("/api/menu-item") || path.startsWith("/api/menu-category") || path.startsWith("/api/staff/") -> "{\"data\":{}}"
+      path.startsWith("/api/menu-item-category-map") -> "{\"data\":{}}"
+      path.startsWith("/api/customization-option") || path.startsWith("/api/topping-option") -> "{\"data\":{}}"
+      path.startsWith("/api/menu-item-customization-group") || path.startsWith("/api/menu-item-topping-group") -> "{\"data\":{}}"
       path == "/api/customization-groups" -> nativeBridge.getCustomizationGroups()
       path == "/api/customization-options" -> nativeBridge.getCustomizationOptions()
       path == "/api/topping-groups" -> nativeBridge.getToppingGroups()
@@ -146,11 +202,12 @@ class MainActivity : AppCompatActivity() {
       path == "/api/menu-category-customization-mappings" -> nativeBridge.getMenuCategoryCustomizationMappings()
       path == "/api/menu-item-topping-mappings" -> nativeBridge.getMenuItemToppingMappings()
       path == "/api/menu-category-topping-mappings" -> nativeBridge.getMenuCategoryToppingMappings()
+      path == "/api/print-queue/status" -> nativeBridge.getPrintQueueStatus()
+      path == "/api/runtime/status" -> nativeBridge.getRuntimeStatus()
+      path == "/api/runtime/pending-actions" -> nativeBridge.getPendingActions()
+      path == "/api/print-queue/retry" -> nativeBridge.triggerPrintQueueRetry()
+      path == "/api/pending-actions/retry" -> nativeBridge.triggerPendingActionsRetry()
       else -> null
-    }
-
-    if (jsonResponse == null) {
-      Log.w("SpeyposIntercept", "Unhandled API path: $path")
     }
 
     return if (jsonResponse != null) {
@@ -162,22 +219,9 @@ class MainActivity : AppCompatActivity() {
         mapOf(
           "Access-Control-Allow-Origin" to "*",
           "Access-Control-Allow-Methods" to "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers" to "Content-Type, Authorization"
+          "Access-Control-Allow-Headers" to "Content-Type, Authorization, X-Requested-With"
         ),
         ByteArrayInputStream(jsonResponse.toByteArray())
-      )
-    } else if (request.method == "OPTIONS") {
-      WebResourceResponse(
-        "text/plain",
-        "UTF-8",
-        204,
-        "No Content",
-        mapOf(
-          "Access-Control-Allow-Origin" to "*",
-          "Access-Control-Allow-Methods" to "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers" to "Content-Type, Authorization"
-        ),
-        ByteArrayInputStream(ByteArray(0))
       )
     } else {
       null
@@ -198,9 +242,20 @@ class MainActivity : AppCompatActivity() {
   }
 
   private fun buildFrontendUrl(): String {
-    val backendUrl = Uri.encode("http://127.0.0.1:8080")
-    val apiBaseUrl = Uri.encode("http://127.0.0.1:8080/api")
-    return "file:///android_asset/web/index.html?backendUrl=$backendUrl&apiBaseUrl=$apiBaseUrl&apiProvider=native&disableServiceWorker=true"
+    val cloudSync = configStore.readCloudSyncSettings()
+    val isCloudEnabled = cloudSync.optBoolean("enabled", false)
+    val cloudBaseUrl = cloudSync.optString("base_url", "")
+
+    val apiProvider = if (isCloudEnabled && cloudBaseUrl.isNotBlank()) "cloud" else "native"
+    val apiBaseUrl = if (isCloudEnabled && cloudBaseUrl.isNotBlank()) {
+      cloudBaseUrl
+    } else {
+      "https://$VIRTUAL_DOMAIN/api"
+    }
+
+    val backendUrl = Uri.encode("https://$VIRTUAL_DOMAIN")
+    val encodedApiBaseUrl = Uri.encode(apiBaseUrl)
+    return "https://$VIRTUAL_DOMAIN/web/index.html?backendUrl=$backendUrl&apiBaseUrl=$encodedApiBaseUrl&apiProvider=$apiProvider&disableServiceWorker=true"
   }
 
   private fun schedulePrintQueueWorkers() {
@@ -243,6 +298,7 @@ class MainActivity : AppCompatActivity() {
   }
 
   companion object {
+    private const val VIRTUAL_DOMAIN = "app.speypos.local"
     private const val PRINT_QUEUE_PERIODIC_WORK_NAME = "speypos-print-queue-periodic"
     private const val PRINT_QUEUE_STARTUP_WORK_NAME = "speypos-print-queue-startup"
   }

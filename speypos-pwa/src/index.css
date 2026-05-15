@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Kantumruy Pro';
+  src: url('/fonts/KantumruyPro-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Kantumruy Pro';
+  src: url('/fonts/KantumruyPro-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Kantumruy Pro';
+  src: url('/fonts/KantumruyPro-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
 @layer base {
   :root {
     /* Slate Blue - Professional SaaS palette */
@@ -123,11 +142,25 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans;
     font-family: 'Kantumruy Pro', system-ui, sans-serif;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+  }
+
+  /* Khmer-specific optimizations */
+  html[lang="km"] body {
+    -webkit-font-smoothing: auto;
+    text-rendering: optimizeLegibility;
+  }
+
+  html[lang="km"] .font-medium {
+    font-weight: 600;
+  }
+
+  html[lang="km"] .font-normal {
+    font-weight: 500;
   }
 }
 

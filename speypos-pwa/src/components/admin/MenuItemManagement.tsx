@@ -7,12 +7,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { menuApi, categoryApi, categoryMapApi, customizationGroupApi, menuItemCustomizationGroupApi, toppingGroupApi, menuItemToppingGroupApi, resolveImageUrl } from '@/lib/api';
+import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
+import { resolveImageUrl } from '@/lib/api';
 import type { MenuItem, MenuCategory, MenuItemCategoryMap, CustomizationOptionGroup, MenuItemCustomizationGroup, ToppingGroup, MenuItemToppingGroup } from '@/types/pos';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCurrency } from '@/lib/currency';
 import { ImageUpload } from './ImageUpload';
 import { useTranslation } from '@/lib/i18n';
+
+const menuCompatibility = getMenuCompatibilityProvider();
 
 interface MenuItemFormData {
   name: string;
@@ -58,13 +61,13 @@ export function MenuItemManagement() {
   const fetchData = async () => {
     setIsLoading(true);
     const [itemsRes, categoriesRes, mappingsRes, customGroupsRes, customMappingsRes, toppingGroupsRes, toppingMappingsRes] = await Promise.all([
-      menuApi.getItems(),
-      categoryApi.getCategories(),
-      categoryMapApi.getMappings(),
-      customizationGroupApi.getAll(),
-      menuItemCustomizationGroupApi.getAll(),
-      toppingGroupApi.getAll(),
-      menuItemToppingGroupApi.getAll(),
+      menuCompatibility.getMenuItems(),
+      menuCompatibility.getCategories(),
+      menuCompatibility.getMenuItemCategoryMappings(),
+      menuCompatibility.getCustomizationGroups(),
+      menuCompatibility.getMenuItemCustomizationMappings(),
+      menuCompatibility.getToppingGroups(),
+      menuCompatibility.getMenuItemToppingMappings(),
     ]);
     
     if (itemsRes.data) setItems(itemsRes.data);
@@ -202,14 +205,14 @@ export function MenuItemManagement() {
       let itemId = editingItem?.id;
 
       if (editingItem) {
-        const response = await menuApi.updateItem(editingItem.id, {
+        const response = await menuCompatibility.updateItem(editingItem.id, {
           name: formData.name.trim(),
           price: normalizeInput(priceNum),
           image_url: formData.image_url.trim() || null,
         });
         if (response.error) throw new Error(response.error);
       } else {
-        const response = await menuApi.createItem({
+        const response = await menuCompatibility.createItem({
           name: formData.name.trim(),
           price: normalizeInput(priceNum),
           image_url: formData.image_url.trim() || undefined,
@@ -226,14 +229,14 @@ export function MenuItemManagement() {
         // Remove old category mappings
         for (const mapping of currentCatMappings) {
           if (!formData.category_ids.includes(mapping.menu_category_id)) {
-            await categoryMapApi.deleteMapping(mapping.id);
+            await menuCompatibility.deleteMenuItemCategoryMapping(mapping.id);
           }
         }
         
         // Add new category mappings
         for (const categoryId of formData.category_ids) {
           if (!currentCategoryIds.includes(categoryId)) {
-            await categoryMapApi.createMapping({
+            await menuCompatibility.createMenuItemCategoryMapping({
               menu_item_id: itemId,
               menu_category_id: categoryId,
             });
@@ -247,14 +250,14 @@ export function MenuItemManagement() {
         // Remove old customization mappings
         for (const mapping of currentCustomMappings) {
           if (!formData.customization_group_ids.includes(mapping.customization_group_id)) {
-            await menuItemCustomizationGroupApi.delete(mapping.id);
+            await menuCompatibility.deleteMenuItemCustomizationMapping(mapping.id);
           }
         }
 
         // Add new customization mappings
         for (const groupId of formData.customization_group_ids) {
           if (!currentCustomGroupIds.includes(groupId)) {
-            await menuItemCustomizationGroupApi.create({
+            await menuCompatibility.createMenuItemCustomizationMapping({
               menu_item_id: itemId,
               customization_group_id: groupId,
             });
@@ -268,14 +271,14 @@ export function MenuItemManagement() {
         // Remove old topping mappings
         for (const mapping of currentToppingMappings) {
           if (!formData.topping_group_ids.includes(mapping.topping_group_id)) {
-            await menuItemToppingGroupApi.delete(mapping.id);
+            await menuCompatibility.deleteMenuItemToppingMapping(mapping.id);
           }
         }
 
         // Add new topping mappings
         for (const groupId of formData.topping_group_ids) {
           if (!currentToppingGroupIds.includes(groupId)) {
-            await menuItemToppingGroupApi.create({
+            await menuCompatibility.createMenuItemToppingMapping({
               menu_item_id: itemId,
               topping_group_id: groupId,
             });
@@ -299,7 +302,7 @@ export function MenuItemManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await menuApi.deleteItem(deletingItem.id);
+      const response = await menuCompatibility.deleteItem(deletingItem.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.menuItemDeleted') });
       setIsDeleteOpen(false);

@@ -8,12 +8,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { storeApi, systemApi, healthApi } from '@/lib/api';
+import { getSettingsCompatibilityProvider } from '@/lib/compatibility/settings';
+import { getSystemCompatibilityProvider } from '@/lib/compatibility/system';
+import { healthApi } from '@/lib/api';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useSetup } from '@/contexts/SetupContext';
 import { useTranslation } from '@/lib/i18n';
 import { ImageUpload } from './ImageUpload';
 import type { Store as StoreType, PaymentProfileV1 } from '@/types/pos';
+
+const settingsCompatibility = getSettingsCompatibilityProvider();
+const systemCompatibility = getSystemCompatibilityProvider();
 
 const CURRENCY_OPTIONS = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -64,7 +69,7 @@ export function StoreManagement() {
   const loadStore = async () => {
     setLoading(true);
     try {
-      const { data, error } = await storeApi.get();
+      const { data, error } = await settingsCompatibility.getStore();
       if (error) {
         console.error('Failed to load store:', error);
       } else if (data) {
@@ -91,7 +96,7 @@ export function StoreManagement() {
   const saveIdentity = async () => {
     setSavingIdentity(true);
     try {
-      const { error } = await storeApi.update({ name: storeName });
+      const { error } = await settingsCompatibility.updateStore({ name: storeName });
       
       if (error) {
         toast({
@@ -124,7 +129,7 @@ export function StoreManagement() {
         language !== store?.language || 
         currency !== store?.currency;
       
-      const { error } = await storeApi.update({ language, currency });
+      const { error } = await settingsCompatibility.updateStore({ language, currency });
       
       if (error) {
         toast({
@@ -158,7 +163,7 @@ export function StoreManagement() {
   const saveBranding = async () => {
     setSavingBranding(true);
     try {
-      const { error } = await storeApi.update({ 
+      const { error } = await settingsCompatibility.updateStore({
         brand_name: brandName || null, 
         logo_url: logoUrl || null,
         address: address || null,
@@ -199,7 +204,7 @@ export function StoreManagement() {
         },
       };
       
-      const { error } = await storeApi.update({ payment_profile: paymentProfile });
+      const { error } = await settingsCompatibility.updateStore({ payment_profile: paymentProfile });
       
       if (error) {
         toast({
@@ -237,7 +242,7 @@ export function StoreManagement() {
     setRebootStatus('sending');
     
     try {
-      await systemApi.reboot();
+      await systemCompatibility.reboot();
     } catch (err) {
       // Expected - server may already be shutting down
     }

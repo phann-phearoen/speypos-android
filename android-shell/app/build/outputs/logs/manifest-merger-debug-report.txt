@@ -9,6 +9,7 @@ MERGED from [com.google.android.material:material:1.12.0] /Users/phearoenphann/.
 MERGED from [androidx.appcompat:appcompat-resources:1.7.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/429a9523ea1b497114f85d58370b22a0/transformed/appcompat-resources-1.7.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/b8337d1d0a67618a763bc0b16ffcec44/transformed/constraintlayout-2.0.1/AndroidManifest.xml:2:1-11:12
 MERGED from [androidx.appcompat:appcompat:1.7.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/bee6e79e0afa54a7e7994fd648b003d4/transformed/appcompat-1.7.0/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.webkit:webkit:1.11.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/ef564f873ced9fe75a353026b47cc317/transformed/webkit-1.11.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/e1cc25c5b1885db14e2b23f73ae2a2d7/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/dfa171bec22766d39f10cb7aee7862e7/transformed/emoji2-1.3.0/AndroidManifest.xml:17:1-35:12
 MERGED from [androidx.viewpager2:viewpager2:1.0.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/d1879d3691a90fc0bee7394e7ba6299a/transformed/viewpager2-1.0.0/AndroidManifest.xml:17:1-24:12
@@ -140,6 +141,8 @@ MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/phearoenph
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/b8337d1d0a67618a763bc0b16ffcec44/transformed/constraintlayout-2.0.1/AndroidManifest.xml:5:5-7:41
 MERGED from [androidx.appcompat:appcompat:1.7.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/bee6e79e0afa54a7e7994fd648b003d4/transformed/appcompat-1.7.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.appcompat:appcompat:1.7.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/bee6e79e0afa54a7e7994fd648b003d4/transformed/appcompat-1.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.webkit:webkit:1.11.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/ef564f873ced9fe75a353026b47cc317/transformed/webkit-1.11.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.webkit:webkit:1.11.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/ef564f873ced9fe75a353026b47cc317/transformed/webkit-1.11.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/e1cc25c5b1885db14e2b23f73ae2a2d7/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/e1cc25c5b1885db14e2b23f73ae2a2d7/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/phearoenphann/.gradle/caches/9.0.0/transforms/dfa171bec22766d39f10cb7aee7862e7/transformed/emoji2-1.3.0/AndroidManifest.xml:21:5-44

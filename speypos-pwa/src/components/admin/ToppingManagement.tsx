@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { toppingGroupApi, toppingOptionApi } from '@/lib/api';
+import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
 import type { ToppingGroup, ToppingOption } from '@/types/pos';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
+
+const menuCompatibility = getMenuCompatibilityProvider();
 
 interface GroupFormData {
   name: string;
@@ -77,8 +79,8 @@ export function ToppingManagement() {
   const fetchData = async () => {
     setIsLoading(true);
     const [groupsRes, optionsRes] = await Promise.all([
-      toppingGroupApi.getAll(),
-      toppingOptionApi.getAll(),
+      menuCompatibility.getToppingGroups(),
+      menuCompatibility.getToppingOptions(),
     ]);
 
     if (groupsRes.data) setGroups(groupsRes.data.sort((a, b) => a.sort_order - b.sort_order));
@@ -125,7 +127,7 @@ export function ToppingManagement() {
     setIsSubmitting(true);
     try {
       if (editingGroup) {
-        const response = await toppingGroupApi.update(editingGroup.id, {
+        const response = await menuCompatibility.updateToppingGroup(editingGroup.id, {
           name: groupFormData.name.trim(),
           required: groupFormData.required,
           sort_order: parseInt(groupFormData.sort_order, 10),
@@ -133,7 +135,7 @@ export function ToppingManagement() {
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.groupUpdated') });
       } else {
-        const response = await toppingGroupApi.create({
+        const response = await menuCompatibility.createToppingGroup({
           name: groupFormData.name.trim(),
           required: groupFormData.required,
           sort_order: parseInt(groupFormData.sort_order, 10),
@@ -156,7 +158,7 @@ export function ToppingManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await toppingGroupApi.delete(deletingGroup.id);
+      const response = await menuCompatibility.deleteToppingGroup(deletingGroup.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.groupDeleted') });
       setIsGroupDeleteOpen(false);
@@ -218,7 +220,7 @@ export function ToppingManagement() {
     setIsSubmitting(true);
     try {
       if (editingOption) {
-        const response = await toppingOptionApi.update(editingOption.id, {
+        const response = await menuCompatibility.updateToppingOption(editingOption.id, {
           label: optionFormData.label.trim(),
           unit_label: optionFormData.unit_label,
           unit_price: normalizeInput(unitPrice),
@@ -230,7 +232,7 @@ export function ToppingManagement() {
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.optionUpdated') });
       } else {
-        const response = await toppingOptionApi.create({
+        const response = await menuCompatibility.createToppingOption({
           topping_group_id: selectedGroup.id,
           label: optionFormData.label.trim(),
           unit_label: optionFormData.unit_label,
@@ -257,7 +259,7 @@ export function ToppingManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await toppingOptionApi.delete(deletingOption.id);
+      const response = await menuCompatibility.deleteToppingOption(deletingOption.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.optionDeleted') });
       setIsOptionDeleteOpen(false);

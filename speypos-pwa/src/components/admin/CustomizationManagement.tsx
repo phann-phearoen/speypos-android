@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { customizationGroupApi, customizationOptionApi } from '@/lib/api';
+import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
 import type { CustomizationOptionGroup, CustomizationOption } from '@/types/pos';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
+
+const menuCompatibility = getMenuCompatibilityProvider();
 
 interface GroupFormData {
   name: string;
@@ -67,8 +69,8 @@ export function CustomizationManagement() {
   const fetchData = async () => {
     setIsLoading(true);
     const [groupsRes, optionsRes] = await Promise.all([
-      customizationGroupApi.getAll(),
-      customizationOptionApi.getAll(),
+      menuCompatibility.getCustomizationGroups(),
+      menuCompatibility.getCustomizationOptions(),
     ]);
 
     if (groupsRes.data) setGroups(groupsRes.data);
@@ -115,7 +117,7 @@ export function CustomizationManagement() {
     setIsSubmitting(true);
     try {
       if (editingGroup) {
-        const response = await customizationGroupApi.update(editingGroup.id, {
+        const response = await menuCompatibility.updateCustomizationGroup(editingGroup.id, {
           name: groupFormData.name.trim(),
           selection_type: groupFormData.selection_type,
           required: groupFormData.required,
@@ -123,7 +125,7 @@ export function CustomizationManagement() {
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.groupUpdated') });
       } else {
-        const response = await customizationGroupApi.create({
+        const response = await menuCompatibility.createCustomizationGroup({
           name: groupFormData.name.trim(),
           selection_type: groupFormData.selection_type,
           required: groupFormData.required,
@@ -146,7 +148,7 @@ export function CustomizationManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await customizationGroupApi.delete(deletingGroup.id);
+      const response = await menuCompatibility.deleteCustomizationGroup(deletingGroup.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.groupDeleted') });
       setIsGroupDeleteOpen(false);
@@ -200,7 +202,7 @@ export function CustomizationManagement() {
     setIsSubmitting(true);
     try {
       if (editingOption) {
-        const response = await customizationOptionApi.update(editingOption.id, {
+        const response = await menuCompatibility.updateCustomizationOption(editingOption.id, {
           label: optionFormData.label.trim(),
           price_delta: normalizeInput(priceDelta),
           sort_order: parseInt(optionFormData.sort_order, 10),
@@ -208,7 +210,7 @@ export function CustomizationManagement() {
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.optionUpdated') });
       } else {
-        const response = await customizationOptionApi.create({
+        const response = await menuCompatibility.createCustomizationOption({
           customization_group_id: selectedGroup.id,
           label: optionFormData.label.trim(),
           price_delta: normalizeInput(priceDelta),
@@ -231,7 +233,7 @@ export function CustomizationManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await customizationOptionApi.delete(deletingOption.id);
+      const response = await menuCompatibility.deleteCustomizationOption(deletingOption.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.optionDeleted') });
       setIsOptionDeleteOpen(false);
@@ -248,7 +250,7 @@ export function CustomizationManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await customizationGroupApi.update(selectedGroup.id, {
+      const response = await menuCompatibility.updateCustomizationGroup(selectedGroup.id, {
         default_option_id: optionId,
       });
       if (response.error) throw new Error(response.error);

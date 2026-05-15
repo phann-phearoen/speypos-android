@@ -6,15 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import {
-  categoryApi,
-  categoryMapApi,
-  customizationGroupApi,
-  menuCategoryCustomizationGroupApi,
-  toppingGroupApi,
-  menuCategoryToppingGroupApi,
-  resolveImageUrl,
-} from '@/lib/api';
+import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
+import { resolveImageUrl } from '@/lib/api';
 import type {
   CustomizationOptionGroup,
   MenuCategory,
@@ -25,6 +18,8 @@ import type {
 } from '@/types/pos';
 import { ImageUpload } from './ImageUpload';
 import { useTranslation } from '@/lib/i18n';
+
+const menuCompatibility = getMenuCompatibilityProvider();
 
 interface CategoryFormData {
   name: string;
@@ -65,10 +60,10 @@ export function CategoryManagement() {
   const fetchData = async () => {
     setIsLoading(true);
     const [categoriesRes, mappingsRes, categoryCustomizationRes, categoryToppingRes] = await Promise.all([
-      categoryApi.getCategories(),
-      categoryMapApi.getMappings(),
-      menuCategoryCustomizationGroupApi.getAll(),
-      menuCategoryToppingGroupApi.getAll(),
+      menuCompatibility.getCategories(),
+      menuCompatibility.getMenuItemCategoryMappings(),
+      menuCompatibility.getMenuCategoryCustomizationMappings(),
+      menuCompatibility.getMenuCategoryToppingMappings(),
     ]);
 
     if (categoriesRes.data) {
@@ -91,7 +86,7 @@ export function CategoryManagement() {
     fetchData();
 
     // Load customization groups once (for selection UI)
-    customizationGroupApi.getAll().then((res) => {
+    menuCompatibility.getCustomizationGroups().then((res) => {
       if (res.data) {
         const sorted = [...res.data].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
         setCustomizationGroups(sorted);
@@ -99,7 +94,7 @@ export function CategoryManagement() {
     });
 
     // Load topping groups once (for selection UI)
-    toppingGroupApi.getAll().then((res) => {
+    menuCompatibility.getToppingGroups().then((res) => {
       if (res.data) {
         const sorted = [...res.data].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
         setToppingGroups(sorted);
@@ -157,7 +152,7 @@ export function CategoryManagement() {
       let categoryId: string | null = editingCategory?.id ?? null;
 
       if (editingCategory) {
-        const response = await categoryApi.updateCategory(editingCategory.id, {
+        const response = await menuCompatibility.updateCategory(editingCategory.id, {
           name: formData.name.trim(),
           image_url: formData.image_url.trim() || null,
           sort_order: formData.sort_order,
@@ -165,7 +160,7 @@ export function CategoryManagement() {
         if (response.error) throw new Error(response.error);
         toast({ title: t('toast.success'), description: t('toast.categoryUpdated') });
       } else {
-        const response = await categoryApi.createCategory({
+        const response = await menuCompatibility.createCategory({
           name: formData.name.trim(),
           image_url: formData.image_url.trim() || undefined,
           sort_order: formData.sort_order,
@@ -195,13 +190,13 @@ export function CategoryManagement() {
 
         await Promise.all([
           ...toCreate.map((customization_group_id) =>
-            menuCategoryCustomizationGroupApi.create({ menu_category_id: categoryId, customization_group_id })
+            menuCompatibility.createMenuCategoryCustomizationMapping({ menu_category_id: categoryId, customization_group_id })
           ),
-          ...toDelete.map((m) => menuCategoryCustomizationGroupApi.delete(m.id)),
+          ...toDelete.map((m) => menuCompatibility.deleteMenuCategoryCustomizationMapping(m.id)),
           ...toppingsToCreate.map((topping_group_id) =>
-            menuCategoryToppingGroupApi.create({ menu_category_id: categoryId, topping_group_id })
+            menuCompatibility.createMenuCategoryToppingMapping({ menu_category_id: categoryId, topping_group_id })
           ),
-          ...toppingsToDelete.map((m) => menuCategoryToppingGroupApi.delete(m.id)),
+          ...toppingsToDelete.map((m) => menuCompatibility.deleteMenuCategoryToppingMapping(m.id)),
         ]);
       }
 
@@ -220,7 +215,7 @@ export function CategoryManagement() {
 
     setIsSubmitting(true);
     try {
-      const response = await categoryApi.deleteCategory(deletingCategory.id);
+      const response = await menuCompatibility.deleteCategory(deletingCategory.id);
       if (response.error) throw new Error(response.error);
       toast({ title: t('toast.success'), description: t('toast.categoryDeleted') });
       setIsDeleteOpen(false);

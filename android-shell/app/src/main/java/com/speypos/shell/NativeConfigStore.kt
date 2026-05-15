@@ -1,7 +1,9 @@
 package com.speypos.shell
 
 import android.content.Context
+import android.util.Log
 import java.time.LocalDate
+import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -12,69 +14,30 @@ class NativeConfigStore(private val context: Context) {
     val editor = preferences.edit()
     var changed = false
 
-    if (!preferences.contains(PREF_NATIVE_ORDERS_JSON)) {
-      editor.putString(PREF_NATIVE_ORDERS_JSON, buildDefaultOrders().toString())
-      changed = true
-    }
+    val operationalKeys = listOf(
+      PREF_NATIVE_ORDERS_JSON,
+      PREF_NATIVE_STAFF_JSON,
+      PREF_NATIVE_SHIFTS_JSON,
+      PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON,
+      PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON,
+      PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON,
+      PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON,
+      PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON,
+      PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON,
+      PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON,
+      PREF_NATIVE_TOPPING_GROUPS_JSON,
+      PREF_NATIVE_TOPPING_OPTIONS_JSON,
+      PREF_NATIVE_MENU_CATEGORIES_JSON,
+      PREF_NATIVE_MENU_ITEMS_JSON,
+      PREF_NATIVE_PRINT_QUEUE_JSON,
+      PREF_NATIVE_PENDING_ACTIONS_JSON
+    )
 
-    if (!preferences.contains(PREF_NATIVE_STAFF_JSON)) {
-      editor.putString(PREF_NATIVE_STAFF_JSON, buildDefaultStaff().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_SHIFTS_JSON)) {
-      editor.putString(PREF_NATIVE_SHIFTS_JSON, buildDefaultShifts().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON)) {
-      editor.putString(PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON, buildDefaultMenuItemCustomizationMappings().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON)) {
-      editor.putString(PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON, buildDefaultMenuCategoryCustomizationMappings().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON)) {
-      editor.putString(PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON, buildDefaultMenuItemToppingMappings().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON)) {
-      editor.putString(PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON, buildDefaultMenuCategoryToppingMappings().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON)) {
-      editor.putString(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON, buildDefaultCustomizationGroups().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON)) {
-      editor.putString(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON, buildDefaultCustomizationOptions().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_TOPPING_GROUPS_JSON)) {
-      editor.putString(PREF_NATIVE_TOPPING_GROUPS_JSON, buildDefaultToppingGroups().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_TOPPING_OPTIONS_JSON)) {
-      editor.putString(PREF_NATIVE_TOPPING_OPTIONS_JSON, buildDefaultToppingOptions().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_MENU_CATEGORIES_JSON)) {
-      editor.putString(PREF_NATIVE_MENU_CATEGORIES_JSON, buildDefaultMenuCategories().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_MENU_ITEMS_JSON)) {
-      editor.putString(PREF_NATIVE_MENU_ITEMS_JSON, buildDefaultMenuItems().toString())
-      changed = true
+    operationalKeys.forEach { key ->
+      if (!preferences.contains(key)) {
+        editor.putString(key, JSONArray().toString())
+        changed = true
+      }
     }
 
     if (!preferences.contains(PREF_NATIVE_STORE_JSON)) {
@@ -84,16 +47,6 @@ class NativeConfigStore(private val context: Context) {
 
     if (!preferences.contains(PREF_NATIVE_SETTINGS_JSON)) {
       editor.putString(PREF_NATIVE_SETTINGS_JSON, buildDefaultSettings().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_NATIVE_PRINT_QUEUE_JSON)) {
-      editor.putString(PREF_NATIVE_PRINT_QUEUE_JSON, JSONArray().toString())
-      changed = true
-    }
-
-    if (!preferences.contains(PREF_SYSTEM_INITIALIZED)) {
-      editor.putBoolean(PREF_SYSTEM_INITIALIZED, true)
       changed = true
     }
 
@@ -133,29 +86,563 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun readMenuCategories(): JSONArray {
-    val preferences = getPreferences()
-    val raw = preferences.getString(PREF_NATIVE_MENU_CATEGORIES_JSON, null) ?: return buildDefaultMenuCategories()
+    return readArray(PREF_NATIVE_MENU_CATEGORIES_JSON)
+  }
 
-    return try {
-      JSONArray(raw)
-    } catch (_: Exception) {
-      val fallback = buildDefaultMenuCategories()
-      preferences.edit().putString(PREF_NATIVE_MENU_CATEGORIES_JSON, fallback.toString()).apply()
-      fallback
+  fun createMenuCategory(payload: JSONObject): JSONObject {
+    val now = System.currentTimeMillis()
+    val newCategory = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("name", payload.optString("name", ""))
+      .put("image_url", payload.opt("image_url") ?: JSONObject.NULL)
+      .put("sort_order", payload.optInt("sort_order", 0))
+      .put("created_at", now)
+
+    if (newCategory.optString("name").isBlank()) {
+      throw IllegalArgumentException("Category name is required")
     }
+
+    val categories = readMenuCategories()
+    categories.put(newCategory)
+    persistArray(PREF_NATIVE_MENU_CATEGORIES_JSON, categories)
+    return newCategory
+  }
+
+  fun updateMenuCategory(categoryId: String, payload: JSONObject): JSONObject {
+    val categories = readMenuCategories()
+    var updatedCategory: JSONObject? = null
+    val updated = JSONArray()
+
+    for (index in 0 until categories.length()) {
+      val entry = categories.optJSONObject(index) ?: continue
+      if (entry.optString("id") == categoryId) {
+        val merged = JSONObject(entry.toString())
+        val keys = payload.keys()
+        while (keys.hasNext()) {
+          val key = keys.next()
+          merged.put(key, payload.get(key))
+        }
+        updated.put(merged)
+        updatedCategory = merged
+      } else {
+        updated.put(entry)
+      }
+    }
+
+    if (updatedCategory == null) throw IllegalArgumentException("Category not found: $categoryId")
+    persistArray(PREF_NATIVE_MENU_CATEGORIES_JSON, updated)
+    return updatedCategory
+  }
+
+  fun deleteMenuCategory(categoryId: String): JSONObject {
+    val categories = readMenuCategories()
+    val updated = JSONArray()
+    var found = false
+
+    for (index in 0 until categories.length()) {
+      val entry = categories.optJSONObject(index) ?: continue
+      if (entry.optString("id") == categoryId) {
+        found = true
+        continue
+      }
+      updated.put(entry)
+    }
+
+    if (!found) throw IllegalArgumentException("Category not found: $categoryId")
+    
+    // Cleanup mappings
+    val mappings = readMenuItemCategoryMappings()
+    val updatedMappings = JSONArray()
+    for (i in 0 until mappings.length()) {
+      val m = mappings.optJSONObject(i) ?: continue
+      if (m.optString("menu_category_id") != categoryId) {
+        updatedMappings.put(m)
+      }
+    }
+    persistArray(PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON, updatedMappings)
+    
+    persistArray(PREF_NATIVE_MENU_CATEGORIES_JSON, updated)
+    return JSONObject().put("success", true)
   }
 
   fun readMenuItems(): JSONArray {
-    val preferences = getPreferences()
-    val raw = preferences.getString(PREF_NATIVE_MENU_ITEMS_JSON, null) ?: return buildDefaultMenuItems()
-
-    return try {
-      JSONArray(raw)
-    } catch (_: Exception) {
-      val fallback = buildDefaultMenuItems()
-      preferences.edit().putString(PREF_NATIVE_MENU_ITEMS_JSON, fallback.toString()).apply()
-      fallback
+    val items = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
+    val mappings = readMenuItemCategoryMappings()
+    
+    val enriched = JSONArray()
+    for (i in 0 until items.length()) {
+      val item = items.optJSONObject(i) ?: continue
+      val itemId = item.optString("id")
+      val categoryIds = JSONArray()
+      for (j in 0 until mappings.length()) {
+        val m = mappings.optJSONObject(j) ?: continue
+        if (m.optString("menu_item_id") == itemId) {
+          categoryIds.put(m.optString("menu_category_id"))
+        }
+      }
+      val enrichedItem = JSONObject(item.toString()).put("category_ids", categoryIds)
+      enriched.put(enrichedItem)
     }
+    return enriched
+  }
+
+  fun createMenuItem(payload: JSONObject): JSONObject {
+    val now = System.currentTimeMillis()
+    val newItem = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("name", payload.optString("name", ""))
+      .put("price", payload.optInt("price", 0))
+      .put("image_url", payload.opt("image_url") ?: JSONObject.NULL)
+      .put("created_at", now)
+      .put("updated_at", now)
+
+    if (newItem.optString("name").isBlank()) {
+      throw IllegalArgumentException("Item name is required")
+    }
+
+    val items = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
+    items.put(newItem)
+    persistArray(PREF_NATIVE_MENU_ITEMS_JSON, items)
+    
+    // Return enriched object
+    return newItem.put("category_ids", JSONArray())
+  }
+
+  fun updateMenuItem(itemId: String, payload: JSONObject): JSONObject {
+    val items = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
+    var updatedItem: JSONObject? = null
+    val updated = JSONArray()
+    val now = System.currentTimeMillis()
+
+    for (index in 0 until items.length()) {
+      val entry = items.optJSONObject(index) ?: continue
+      if (entry.optString("id") == itemId) {
+        val merged = JSONObject(entry.toString())
+        val keys = payload.keys()
+        while (keys.hasNext()) {
+          val key = keys.next()
+          merged.put(key, payload.get(key))
+        }
+        merged.put("updated_at", now)
+        updated.put(merged)
+        updatedItem = merged
+      } else {
+        updated.put(entry)
+      }
+    }
+
+    if (updatedItem == null) throw IllegalArgumentException("Item not found: $itemId")
+    persistArray(PREF_NATIVE_MENU_ITEMS_JSON, updated)
+    
+    // Enrich response with category_ids
+    val mappings = readMenuItemCategoryMappings()
+    val categoryIds = JSONArray()
+    for (j in 0 until mappings.length()) {
+      val m = mappings.optJSONObject(j) ?: continue
+      if (m.optString("menu_item_id") == itemId) {
+        categoryIds.put(m.optString("menu_category_id"))
+      }
+    }
+    return updatedItem.put("category_ids", categoryIds)
+  }
+
+  fun deleteMenuItem(itemId: String): JSONObject {
+    val items = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
+    val updated = JSONArray()
+    var found = false
+
+    for (index in 0 until items.length()) {
+      val entry = items.optJSONObject(index) ?: continue
+      if (entry.optString("id") == itemId) {
+        found = true
+        continue
+      }
+      updated.put(entry)
+    }
+
+    if (!found) throw IllegalArgumentException("Item not found: $itemId")
+    
+    // Cleanup mappings
+    val mappings = readMenuItemCategoryMappings()
+    val updatedMappings = JSONArray()
+    for (i in 0 until mappings.length()) {
+      val m = mappings.optJSONObject(i) ?: continue
+      if (m.optString("menu_item_id") != itemId) {
+        updatedMappings.put(m)
+      }
+    }
+    persistArray(PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON, updatedMappings)
+    
+    persistArray(PREF_NATIVE_MENU_ITEMS_JSON, updated)
+    return JSONObject().put("success", true)
+  }
+
+  fun readMenuItemCategoryMappings(): JSONArray {
+    return readArray(PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON)
+  }
+
+  fun createMenuItemCategoryMapping(payload: JSONObject): JSONObject {
+    val newMapping = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("menu_item_id", payload.optString("menu_item_id"))
+      .put("menu_category_id", payload.optString("menu_category_id"))
+
+    val mappings = readMenuItemCategoryMappings()
+    mappings.put(newMapping)
+    persistArray(PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON, mappings)
+    return newMapping
+  }
+
+  fun deleteMenuItemCategoryMapping(mappingId: String): JSONObject {
+    val mappings = readMenuItemCategoryMappings()
+    val updated = JSONArray()
+    var found = false
+
+    for (index in 0 until mappings.length()) {
+      val entry = mappings.optJSONObject(index) ?: continue
+      if (entry.optString("id") == mappingId) {
+        found = true
+        continue
+      }
+      updated.put(entry)
+    }
+
+    if (!found) throw IllegalArgumentException("Mapping not found: $mappingId")
+    persistArray(PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON, updated)
+    return JSONObject().put("success", true)
+  }
+
+  // Customization Groups
+  fun createCustomizationGroup(payload: JSONObject): JSONObject {
+    val newGroup = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("name", payload.optString("name"))
+      .put("selection_type", payload.optString("selection_type", "single"))
+      .put("required", payload.optBoolean("required", false))
+      .put("sort_order", payload.optInt("sort_order", 0))
+      .put("default_option_id", payload.opt("default_option_id") ?: JSONObject.NULL)
+
+    val groups = readArray(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON)
+    groups.put(newGroup)
+    persistArray(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON, groups)
+    return newGroup
+  }
+
+  fun updateCustomizationGroup(groupId: String, payload: JSONObject): JSONObject {
+    val groups = readArray(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON)
+    var updated: JSONObject? = null
+    val newArray = JSONArray()
+
+    for (i in 0 until groups.length()) {
+      val entry = groups.optJSONObject(i) ?: continue
+      if (entry.optString("id") == groupId) {
+        val merged = JSONObject(entry.toString())
+        val keys = payload.keys()
+        while (keys.hasNext()) {
+          val key = keys.next()
+          merged.put(key, payload.get(key))
+        }
+        newArray.put(merged)
+        updated = merged
+      } else {
+        newArray.put(entry)
+      }
+    }
+    if (updated == null) throw IllegalArgumentException("Group not found")
+    persistArray(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON, newArray)
+    return updated
+  }
+
+  fun deleteCustomizationGroup(groupId: String): JSONObject {
+    val groups = readArray(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON)
+    val newArray = JSONArray()
+    var found = false
+    for (i in 0 until groups.length()) {
+      val entry = groups.optJSONObject(i) ?: continue
+      if (entry.optString("id") == groupId) {
+        found = true
+        continue
+      }
+      newArray.put(entry)
+    }
+    if (!found) throw IllegalArgumentException("Group not found")
+    persistArray(PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON, newArray)
+    return JSONObject().put("success", true)
+  }
+
+  // Customization Options
+  fun createCustomizationOption(payload: JSONObject): JSONObject {
+    val newOption = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("customization_group_id", payload.optString("customization_group_id"))
+      .put("label", payload.optString("label"))
+      .put("price_delta", payload.optInt("price_delta", 0))
+      .put("sort_order", payload.optInt("sort_order", 0))
+
+    val options = readArray(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON)
+    options.put(newOption)
+    persistArray(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON, options)
+    return newOption
+  }
+
+  fun updateCustomizationOption(optionId: String, payload: JSONObject): JSONObject {
+    val options = readArray(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON)
+    var updated: JSONObject? = null
+    val newArray = JSONArray()
+
+    for (i in 0 until options.length()) {
+      val entry = options.optJSONObject(i) ?: continue
+      if (entry.optString("id") == optionId) {
+        val merged = JSONObject(entry.toString())
+        val keys = payload.keys()
+        while (keys.hasNext()) {
+          val key = keys.next()
+          merged.put(key, payload.get(key))
+        }
+        newArray.put(merged)
+        updated = merged
+      } else {
+        newArray.put(entry)
+      }
+    }
+    if (updated == null) throw IllegalArgumentException("Option not found")
+    persistArray(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON, newArray)
+    return updated
+  }
+
+  fun deleteCustomizationOption(optionId: String): JSONObject {
+    val options = readArray(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON)
+    val newArray = JSONArray()
+    var found = false
+    for (i in 0 until options.length()) {
+      val entry = options.optJSONObject(i) ?: continue
+      if (entry.optString("id") == optionId) {
+        found = true
+        continue
+      }
+      newArray.put(entry)
+    }
+    if (!found) throw IllegalArgumentException("Option not found")
+    persistArray(PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON, newArray)
+    return JSONObject().put("success", true)
+  }
+
+  // Topping Groups
+  fun createToppingGroup(payload: JSONObject): JSONObject {
+    val newGroup = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("name", payload.optString("name"))
+      .put("required", payload.optBoolean("required", false))
+      .put("sort_order", payload.optInt("sort_order", 0))
+
+    val groups = readArray(PREF_NATIVE_TOPPING_GROUPS_JSON)
+    groups.put(newGroup)
+    persistArray(PREF_NATIVE_TOPPING_GROUPS_JSON, groups)
+    return newGroup
+  }
+
+  fun updateToppingGroup(groupId: String, payload: JSONObject): JSONObject {
+    val groups = readArray(PREF_NATIVE_TOPPING_GROUPS_JSON)
+    var updated: JSONObject? = null
+    val newArray = JSONArray()
+
+    for (i in 0 until groups.length()) {
+      val entry = groups.optJSONObject(i) ?: continue
+      if (entry.optString("id") == groupId) {
+        val merged = JSONObject(entry.toString())
+        val keys = payload.keys()
+        while (keys.hasNext()) {
+          val key = keys.next()
+          merged.put(key, payload.get(key))
+        }
+        newArray.put(merged)
+        updated = merged
+      } else {
+        newArray.put(entry)
+      }
+    }
+    if (updated == null) throw IllegalArgumentException("Group not found")
+    persistArray(PREF_NATIVE_TOPPING_GROUPS_JSON, newArray)
+    return updated
+  }
+
+  fun deleteToppingGroup(groupId: String): JSONObject {
+    val groups = readArray(PREF_NATIVE_TOPPING_GROUPS_JSON)
+    val newArray = JSONArray()
+    var found = false
+    for (i in 0 until groups.length()) {
+      val entry = groups.optJSONObject(i) ?: continue
+      if (entry.optString("id") == groupId) {
+        found = true
+        continue
+      }
+      newArray.put(entry)
+    }
+    if (!found) throw IllegalArgumentException("Group not found")
+    persistArray(PREF_NATIVE_TOPPING_GROUPS_JSON, newArray)
+    return JSONObject().put("success", true)
+  }
+
+  // Topping Options
+  fun createToppingOption(payload: JSONObject): JSONObject {
+    val newOption = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("topping_group_id", payload.optString("topping_group_id"))
+      .put("label", payload.optString("label"))
+      .put("unit_label", payload.optString("unit_label", ""))
+      .put("unit_price", payload.optInt("unit_price", 0))
+      .put("min_quantity", payload.optInt("min_quantity", 0))
+      .put("max_quantity", payload.opt("max_quantity") ?: JSONObject.NULL)
+      .put("step_quantity", payload.optInt("step_quantity", 1))
+      .put("sort_order", payload.optInt("sort_order", 0))
+
+    val options = readArray(PREF_NATIVE_TOPPING_OPTIONS_JSON)
+    options.put(newOption)
+    persistArray(PREF_NATIVE_TOPPING_OPTIONS_JSON, options)
+    return newOption
+  }
+
+  fun updateToppingOption(optionId: String, payload: JSONObject): JSONObject {
+    val options = readArray(PREF_NATIVE_TOPPING_OPTIONS_JSON)
+    var updated: JSONObject? = null
+    val newArray = JSONArray()
+
+    for (i in 0 until options.length()) {
+      val entry = options.optJSONObject(i) ?: continue
+      if (entry.optString("id") == optionId) {
+        val merged = JSONObject(entry.toString())
+        val keys = payload.keys()
+        while (keys.hasNext()) {
+          val key = keys.next()
+          merged.put(key, payload.get(key))
+        }
+        newArray.put(merged)
+        updated = merged
+      } else {
+        newArray.put(entry)
+      }
+    }
+    if (updated == null) throw IllegalArgumentException("Option not found")
+    persistArray(PREF_NATIVE_TOPPING_OPTIONS_JSON, newArray)
+    return updated
+  }
+
+  fun deleteToppingOption(optionId: String): JSONObject {
+    val options = readArray(PREF_NATIVE_TOPPING_OPTIONS_JSON)
+    val newArray = JSONArray()
+    var found = false
+    for (i in 0 until options.length()) {
+      val entry = options.optJSONObject(i) ?: continue
+      if (entry.optString("id") == optionId) {
+        found = true
+        continue
+      }
+      newArray.put(entry)
+    }
+    if (!found) throw IllegalArgumentException("Option not found")
+    persistArray(PREF_NATIVE_TOPPING_OPTIONS_JSON, newArray)
+    return JSONObject().put("success", true)
+  }
+
+  // Mappings (Customizations & Toppings)
+  fun createMenuItemCustomizationMapping(payload: JSONObject): JSONObject {
+    val newMapping = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("menu_item_id", payload.optString("menu_item_id"))
+      .put("customization_group_id", payload.optString("customization_group_id"))
+    val arr = readArray(PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON)
+    arr.put(newMapping)
+    persistArray(PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON, arr)
+    return newMapping
+  }
+
+  fun deleteMenuItemCustomizationMapping(id: String): JSONObject {
+    val arr = readArray(PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON)
+    val newArr = JSONArray()
+    var found = false
+    for (i in 0 until arr.length()) {
+      val e = arr.optJSONObject(i) ?: continue
+      if (e.optString("id") == id) { found = true; continue }
+      newArr.put(e)
+    }
+    if (!found) throw IllegalArgumentException("Mapping not found")
+    persistArray(PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON, newArr)
+    return JSONObject().put("success", true)
+  }
+
+  fun createMenuCategoryCustomizationMapping(payload: JSONObject): JSONObject {
+    val newMapping = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("menu_category_id", payload.optString("menu_category_id"))
+      .put("customization_group_id", payload.optString("customization_group_id"))
+    val arr = readArray(PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON)
+    arr.put(newMapping)
+    persistArray(PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON, arr)
+    return newMapping
+  }
+
+  fun deleteMenuCategoryCustomizationMapping(id: String): JSONObject {
+    val arr = readArray(PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON)
+    val newArr = JSONArray()
+    var found = false
+    for (i in 0 until arr.length()) {
+      val e = arr.optJSONObject(i) ?: continue
+      if (e.optString("id") == id) { found = true; continue }
+      newArr.put(e)
+    }
+    if (!found) throw IllegalArgumentException("Mapping not found")
+    persistArray(PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON, newArr)
+    return JSONObject().put("success", true)
+  }
+
+  fun createMenuItemToppingMapping(payload: JSONObject): JSONObject {
+    val newMapping = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("menu_item_id", payload.optString("menu_item_id"))
+      .put("topping_group_id", payload.optString("topping_group_id"))
+    val arr = readArray(PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON)
+    arr.put(newMapping)
+    persistArray(PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON, arr)
+    return newMapping
+  }
+
+  fun deleteMenuItemToppingMapping(id: String): JSONObject {
+    val arr = readArray(PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON)
+    val newArr = JSONArray()
+    var found = false
+    for (i in 0 until arr.length()) {
+      val e = arr.optJSONObject(i) ?: continue
+      if (e.optString("id") == id) { found = true; continue }
+      newArr.put(e)
+    }
+    if (!found) throw IllegalArgumentException("Mapping not found")
+    persistArray(PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON, newArr)
+    return JSONObject().put("success", true)
+  }
+
+  fun createMenuCategoryToppingMapping(payload: JSONObject): JSONObject {
+    val newMapping = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("menu_category_id", payload.optString("menu_category_id"))
+      .put("topping_group_id", payload.optString("topping_group_id"))
+    val arr = readArray(PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON)
+    arr.put(newMapping)
+    persistArray(PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON, arr)
+    return newMapping
+  }
+
+  fun deleteMenuCategoryToppingMapping(id: String): JSONObject {
+    val arr = readArray(PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON)
+    val newArr = JSONArray()
+    var found = false
+    for (i in 0 until arr.length()) {
+      val e = arr.optJSONObject(i) ?: continue
+      if (e.optString("id") == id) { found = true; continue }
+      newArr.put(e)
+    }
+    if (!found) throw IllegalArgumentException("Mapping not found")
+    persistArray(PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON, newArr)
+    return JSONObject().put("success", true)
   }
 
   fun readMenuItemCustomizationMappings(): JSONArray {
@@ -501,8 +988,8 @@ class NativeConfigStore(private val context: Context) {
         val order = findOrderById(readOrders(), orderId)
           ?: throw IllegalStateException("Order not found for print job: $orderId")
 
-        if (order.optString("status") != "completed") {
-          throw IllegalStateException("Cannot print receipt for non-completed order")
+        if (order.optString("status") != "completed" && order.optString("status") != "voided") {
+          throw IllegalStateException("Cannot print receipt for order status: ${order.optString("status")}")
         }
 
         if (mode == "initial" && order.optInt("print_count", 0) > 0) {
@@ -517,6 +1004,20 @@ class NativeConfigStore(private val context: Context) {
         }
 
         validatePrinterTarget(processingJob)
+        
+        // 1. Render ESC/POS Payload
+        val language = readStore().optString("language", "en")
+        val payload = ReceiptRenderer.renderOrder(
+          order, 
+          if (order.optString("status") == "voided") "VOID" else "INTERNAL",
+          language
+        )
+
+        // 2. Send to Printer
+        val host = processingJob.optString("host")
+        val port = processingJob.optInt("port", 9100)
+        PrinterTransport.sendRawBytes(host, port, payload)
+
         incrementOrderPrint(orderId, now)
 
         val successJob = JSONObject(processingJob.toString())
@@ -747,7 +1248,7 @@ class NativeConfigStore(private val context: Context) {
   fun createStaff(payload: JSONObject): JSONObject {
     val now = System.currentTimeMillis()
     val newStaff = JSONObject()
-      .put("id", "staff-native-$now")
+      .put("id", UUID.randomUUID().toString())
       .put("name", payload.optString("name", ""))
       .put("password", payload.optString("password", ""))
       .put("role", payload.optString("role", "staff"))
@@ -893,6 +1394,13 @@ class NativeConfigStore(private val context: Context) {
     }
 
     persistShifts(updated)
+    
+    // Enqueue background report action
+    enqueuePendingAction(ACTION_TYPE_SHIFT_REPORT, JSONObject()
+      .put("shift_id", shiftId)
+      .put("action", "close")
+      .put("timestamp", now))
+
     return updatedShift
   }
 
@@ -916,28 +1424,395 @@ class NativeConfigStore(private val context: Context) {
     }
 
     persistShifts(updated)
+
+    // Enqueue background report action
+    enqueuePendingAction(ACTION_TYPE_SHIFT_REPORT, JSONObject()
+      .put("action", "close_day")
+      .put("closed_count", closedCount)
+      .put("timestamp", now))
+
     return JSONObject()
       .put("message", "Closed $closedCount shift(s).")
       .put("closed_count", closedCount)
   }
 
+  fun readCloudSyncSettings(): JSONObject {
+    val settings = readSettings()
+    for (index in 0 until settings.length()) {
+      val setting = settings.optJSONObject(index) ?: continue
+      if (setting.optString("key") == "cloud.sync") {
+        return setting.optJSONObject("value") ?: JSONObject()
+      }
+    }
+    return JSONObject()
+  }
+
+  fun updateCloudSyncSettings(payload: JSONObject): JSONObject {
+    return upsertSetting("cloud.sync", payload).optJSONObject("value") ?: JSONObject()
+  }
+
+  fun updateStore(payload: JSONObject): JSONObject {
+    val current = readStore()
+    val merged = JSONObject(current.toString())
+    val keys = payload.keys()
+    while (keys.hasNext()) {
+      val key = keys.next()
+      merged.put(key, payload.get(key))
+    }
+    getPreferences().edit().putString(PREF_NATIVE_STORE_JSON, merged.toString()).apply()
+    return merged
+  }
+
+  fun upsertSetting(key: String, payload: JSONObject): JSONObject {
+    val settings = readSettings()
+    val updated = JSONArray()
+    var found = false
+    var updatedSetting: JSONObject? = null
+
+    for (i in 0 until settings.length()) {
+      val setting = settings.optJSONObject(i) ?: continue
+      if (setting.optString("key") == key) {
+        val merged = JSONObject(setting.toString())
+        val payloadKeys = payload.keys()
+        while (payloadKeys.hasNext()) {
+          val k = payloadKeys.next()
+          merged.put(k, payload.get(k))
+        }
+        updated.put(merged)
+        updatedSetting = merged
+        found = true
+      } else {
+        updated.put(setting)
+      }
+    }
+
+    if (!found) {
+      val newSetting = JSONObject(payload.toString()).put("key", key)
+      if (!newSetting.has("id")) {
+        newSetting.put("id", UUID.randomUUID().toString())
+      }
+      updated.put(newSetting)
+      updatedSetting = newSetting
+    }
+
+    getPreferences().edit().putString(PREF_NATIVE_SETTINGS_JSON, updated.toString()).apply()
+    return updatedSetting!!
+  }
+
+  fun verifyStaffCredentials(name: String, password: String): JSONObject? {
+    val staff = readStaff()
+    for (i in 0 until staff.length()) {
+      val entry = staff.optJSONObject(i) ?: continue
+      if (entry.optString("name") == name && entry.optString("password") == password) {
+        return entry
+      }
+    }
+    return null
+  }
+
+  fun initialize(payload: JSONObject): JSONObject {
+    val admin = payload.optJSONObject("admin_user") ?: throw IllegalArgumentException("admin_user is required")
+    val store = payload.optJSONObject("store") ?: throw IllegalArgumentException("store is required")
+
+    // 1. Setup Admin
+    createStaff(JSONObject()
+      .put("name", admin.optString("name"))
+      .put("password", admin.optString("password"))
+      .put("role", "admin")
+      .put("status", "active"))
+
+    // 2. Setup Store
+    val currentStore = readStore()
+    val updatedStore = JSONObject(currentStore.toString())
+      .put("name", store.optString("name"))
+      .put("language", store.optString("language", "en"))
+      .put("currency", store.optString("currency", "KHR"))
+    
+    getPreferences().edit()
+      .putString(PREF_NATIVE_STORE_JSON, updatedStore.toString())
+      .putBoolean(PREF_SYSTEM_INITIALIZED, true)
+      .apply()
+
+    return JSONObject().put("message", "Setup completed")
+  }
+
+  fun resetAllData() {
+    getPreferences().edit().clear().apply()
+  }
+
   private fun getPreferences() =
     context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
+  private fun readArray(key: String): JSONArray {
+    val raw = getPreferences().getString(key, null) ?: return JSONArray()
+    return try {
+      JSONArray(raw)
+    } catch (_: Exception) {
+      JSONArray()
+    }
+  }
+
+  private fun persistArray(key: String, data: JSONArray) {
+    getPreferences().edit().putString(key, data.toString()).apply()
+  }
+
   private fun persistShifts(shifts: JSONArray) {
-    getPreferences().edit().putString(PREF_NATIVE_SHIFTS_JSON, shifts.toString()).apply()
+    persistArray(PREF_NATIVE_SHIFTS_JSON, shifts)
   }
 
   private fun persistStaff(staff: JSONArray) {
-    getPreferences().edit().putString(PREF_NATIVE_STAFF_JSON, staff.toString()).apply()
+    persistArray(PREF_NATIVE_STAFF_JSON, staff)
   }
 
   private fun persistOrders(orders: JSONArray) {
-    getPreferences().edit().putString(PREF_NATIVE_ORDERS_JSON, orders.toString()).apply()
+    persistArray(PREF_NATIVE_ORDERS_JSON, orders)
   }
 
   private fun persistPrintQueue(queue: JSONArray) {
-    getPreferences().edit().putString(PREF_NATIVE_PRINT_QUEUE_JSON, queue.toString()).apply()
+    persistArray(PREF_NATIVE_PRINT_QUEUE_JSON, queue)
+  }
+
+  fun readPendingActions(): JSONArray {
+    val preferences = getPreferences()
+    val raw = preferences.getString(PREF_NATIVE_PENDING_ACTIONS_JSON, null) ?: return JSONArray()
+    return try {
+      JSONArray(raw)
+    } catch (_: Exception) {
+      JSONArray()
+    }
+  }
+
+  fun persistPendingActions(actions: JSONArray) {
+    getPreferences().edit().putString(PREF_NATIVE_PENDING_ACTIONS_JSON, actions.toString()).apply()
+  }
+
+  fun enqueuePendingAction(type: String, payload: JSONObject): JSONObject {
+    val now = System.currentTimeMillis()
+    val actions = readPendingActions()
+    val actionId = "action-$type-$now-${(1000..9999).random()}"
+
+    val action = JSONObject()
+      .put("id", actionId)
+      .put("type", type)
+      .put("status", ACTION_STATUS_PENDING)
+      .put("payload", payload)
+      .put("attempt_count", 0)
+      .put("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+      .put("next_attempt_at", now)
+      .put("last_error", JSONObject.NULL)
+      .put("created_at", now)
+      .put("updated_at", now)
+
+    actions.put(action)
+    persistPendingActions(actions)
+    return action
+  }
+
+  fun processPendingActions(context: String = "manual", maxAttemptsPerRun: Int = 20): JSONObject {
+    val now = System.currentTimeMillis()
+    val actions = readPendingActions()
+    val updatedActions = JSONArray()
+
+    var processed = 0
+    var succeeded = 0
+    var retried = 0
+    var deadLettered = 0
+
+    for (index in 0 until actions.length()) {
+      val action = actions.optJSONObject(index) ?: continue
+      val status = action.optString("status")
+      val nextAttemptAt = action.optLong("next_attempt_at", 0L)
+      val eligible = status == ACTION_STATUS_PENDING || status == ACTION_STATUS_RETRYING
+
+      if (!eligible || processed >= maxAttemptsPerRun || nextAttemptAt > now) {
+        updatedActions.put(action)
+        continue
+      }
+
+      val processingAction = JSONObject(action.toString())
+        .put("status", ACTION_STATUS_PROCESSING)
+        .put("updated_at", now)
+
+      try {
+        val type = processingAction.optString("type")
+        val payload = processingAction.optJSONObject("payload") ?: JSONObject()
+
+        when (type) {
+          ACTION_TYPE_CLOUD_SYNC -> {
+            // Placeholder for Cloud Sync logic
+            // In the future, this would call a repository to sync orders/shifts
+            Log.d("PendingAction", "Processing Cloud Sync action: $payload")
+            // Simulate success for now
+          }
+          ACTION_TYPE_SHIFT_REPORT -> {
+            // Placeholder for Shift Report logic (e.g. sending to Telegram or Cloud)
+            Log.d("PendingAction", "Processing Shift Report action: $payload")
+          }
+          else -> {
+            Log.w("PendingAction", "Unknown action type: $type")
+          }
+        }
+
+        val successAction = JSONObject(processingAction.toString())
+          .put("status", ACTION_STATUS_SUCCEEDED)
+          .put("last_error", JSONObject.NULL)
+          .put("updated_at", now)
+        updatedActions.put(successAction)
+        succeeded += 1
+      } catch (error: Exception) {
+        val attempts = processingAction.optInt("attempt_count", 0) + 1
+        val maxAttempts = processingAction.optInt("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+        val message = error.message ?: "Action failed"
+
+        if (attempts >= maxAttempts) {
+          val dead = JSONObject(processingAction.toString())
+            .put("status", ACTION_STATUS_DEAD_LETTER)
+            .put("attempt_count", attempts)
+            .put("last_error", message)
+            .put("updated_at", now)
+          updatedActions.put(dead)
+          deadLettered += 1
+        } else {
+          val backoffMs = computeBackoffMs(attempts)
+          val retry = JSONObject(processingAction.toString())
+            .put("status", ACTION_STATUS_RETRYING)
+            .put("attempt_count", attempts)
+            .put("next_attempt_at", now + backoffMs)
+            .put("last_error", message)
+            .put("updated_at", now)
+          updatedActions.put(retry)
+          retried += 1
+        }
+      }
+      processed += 1
+    }
+
+    persistPendingActions(updatedActions)
+
+    return JSONObject()
+      .put("context", context)
+      .put("processed", processed)
+      .put("succeeded", succeeded)
+      .put("retried", retried)
+      .put("dead_lettered", deadLettered)
+  }
+
+  fun getPendingActionsStatus(): JSONObject {
+    val actions = readPendingActions()
+    var pending = 0
+    var retrying = 0
+    var processing = 0
+    var succeeded = 0
+    var deadLetter = 0
+    var nextAttemptAt: Long? = null
+
+    for (index in 0 until actions.length()) {
+      val action = actions.optJSONObject(index) ?: continue
+      when (action.optString("status")) {
+        ACTION_STATUS_PENDING -> pending += 1
+        ACTION_STATUS_RETRYING -> {
+          retrying += 1
+          val candidate = action.optLong("next_attempt_at", 0L)
+          if (candidate > 0 && (nextAttemptAt == null || candidate < nextAttemptAt)) {
+            nextAttemptAt = candidate
+          }
+        }
+        ACTION_STATUS_PROCESSING -> processing += 1
+        ACTION_STATUS_SUCCEEDED -> succeeded += 1
+        ACTION_STATUS_DEAD_LETTER -> deadLetter += 1
+      }
+    }
+
+    return JSONObject()
+      .put("total_actions", actions.length())
+      .put("pending_actions", pending)
+      .put("retrying_actions", retrying)
+      .put("processing_actions", processing)
+      .put("succeeded_actions", succeeded)
+      .put("dead_letter_actions", deadLetter)
+      .put("next_attempt_at", nextAttemptAt ?: JSONObject.NULL)
+  }
+
+  fun getDeadLetterDetails(): JSONObject {
+    val printQueue = readPrintQueue()
+    val pendingActions = readPendingActions()
+    
+    val printDeadLetters = JSONArray()
+    for (i in 0 until printQueue.length()) {
+      val job = printQueue.optJSONObject(i) ?: continue
+      if (job.optString("status") == PRINT_JOB_DEAD_LETTER) {
+        printDeadLetters.put(job)
+      }
+    }
+
+    val genericDeadLetters = JSONArray()
+    for (i in 0 until pendingActions.length()) {
+      val action = pendingActions.optJSONObject(i) ?: continue
+      if (action.optString("status") == ACTION_STATUS_DEAD_LETTER) {
+        genericDeadLetters.put(action)
+      }
+    }
+
+    return JSONObject()
+      .put("print_jobs", printDeadLetters)
+      .put("generic_actions", genericDeadLetters)
+  }
+
+  fun purgeDeadLetters(): JSONObject {
+    val printQueue = readPrintQueue()
+    val updatedPrint = JSONArray()
+    var printPurged = 0
+    for (i in 0 until printQueue.length()) {
+      val job = printQueue.optJSONObject(i) ?: continue
+      if (job.optString("status") != PRINT_JOB_DEAD_LETTER) {
+        updatedPrint.put(job)
+      } else {
+        printPurged++
+      }
+    }
+    persistPrintQueue(updatedPrint)
+
+    val actions = readPendingActions()
+    val updatedActions = JSONArray()
+    var actionsPurged = 0
+    for (i in 0 until actions.length()) {
+      val action = actions.optJSONObject(i) ?: continue
+      if (action.optString("status") != ACTION_STATUS_DEAD_LETTER) {
+        updatedActions.put(action)
+      } else {
+        actionsPurged++
+      }
+    }
+    persistPendingActions(updatedActions)
+
+    return JSONObject()
+      .put("print_purged", printPurged)
+      .put("actions_purged", actionsPurged)
+  }
+
+  fun forceRetryAction(actionId: String): JSONObject {
+    val actions = readPendingActions()
+    var found = false
+    val now = System.currentTimeMillis()
+
+    for (i in 0 until actions.length()) {
+      val action = actions.optJSONObject(i) ?: continue
+      if (action.optString("id") == actionId) {
+        action.put("status", ACTION_STATUS_PENDING)
+          .put("attempt_count", 0)
+          .put("next_attempt_at", now)
+          .put("updated_at", now)
+        found = true
+        break
+      }
+    }
+
+    if (found) {
+      persistPendingActions(actions)
+      processPendingActions("manual-force", 10)
+    }
+
+    return JSONObject().put("success", found)
   }
 
   private fun buildDefaultOrders(): JSONArray {
@@ -987,7 +1862,7 @@ class NativeConfigStore(private val context: Context) {
   private fun buildDefaultStore(): JSONObject {
     return JSONObject()
       .put("id", "android-shell-store")
-      .put("name", "SpeyPOS")
+      .put("name", "")
       .put("language", "en")
       .put("currency", "USD")
       .put("timezone", "Asia/Phnom_Penh")
@@ -1002,7 +1877,7 @@ class NativeConfigStore(private val context: Context) {
       .put(buildSettingRecord(
         id = "android-system-initialized",
         key = "system.initialized",
-        value = true,
+        value = false,
         valueType = "boolean",
         category = "System",
         description = "Indicates if the initial setup has been completed."
@@ -1321,6 +2196,7 @@ class NativeConfigStore(private val context: Context) {
     private const val PREF_NATIVE_ORDERS_JSON = "native.orders.json"
     private const val PREF_NATIVE_STAFF_JSON = "native.staff.json"
     private const val PREF_NATIVE_SHIFTS_JSON = "native.shifts.json"
+    private const val PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON = "native.menu.item.category.mappings.json"
     private const val PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON = "native.menu.item.customization.mappings.json"
     private const val PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON = "native.menu.category.customization.mappings.json"
     private const val PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON = "native.menu.item.topping.mappings.json"
@@ -1334,6 +2210,7 @@ class NativeConfigStore(private val context: Context) {
     private const val PREF_NATIVE_STORE_JSON = "native.store.json"
     private const val PREF_NATIVE_SETTINGS_JSON = "native.settings.json"
     private const val PREF_NATIVE_PRINT_QUEUE_JSON = "native.print.queue.json"
+    private const val PREF_NATIVE_PENDING_ACTIONS_JSON = "native.pending.actions.json"
     private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
 
     private const val PRINT_JOB_PENDING = "pending"
@@ -1342,5 +2219,15 @@ class NativeConfigStore(private val context: Context) {
     private const val PRINT_JOB_SUCCEEDED = "succeeded"
     private const val PRINT_JOB_DUPLICATE_PREVENTED = "duplicate_prevented"
     private const val PRINT_JOB_DEAD_LETTER = "dead_letter"
+
+    private const val ACTION_TYPE_PRINT = "PRINT"
+    private const val ACTION_TYPE_CLOUD_SYNC = "CLOUD_SYNC"
+    private const val ACTION_TYPE_SHIFT_REPORT = "SHIFT_REPORT"
+
+    private const val ACTION_STATUS_PENDING = "pending"
+    private const val ACTION_STATUS_RETRYING = "retrying"
+    private const val ACTION_STATUS_PROCESSING = "processing"
+    private const val ACTION_STATUS_SUCCEEDED = "succeeded"
+    private const val ACTION_STATUS_DEAD_LETTER = "dead_letter"
   }
 }

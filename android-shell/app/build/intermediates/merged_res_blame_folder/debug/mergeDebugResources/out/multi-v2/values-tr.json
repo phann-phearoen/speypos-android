@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.speypos.shell.app-mergeDebugResources-37:/values-tr/values-tr.xml",
+            "outputFile": "com.speypos.shell.app-mergeDebugResources-38:/values-tr/values-tr.xml",
             "map": [
                 {
                     "source": "/Users/phearoenphann/.gradle/caches/9.0.0/transforms/8c97d544f9fbff002fa0e9b4e2fe7242/transformed/core-1.13.1/res/values-tr/values-tr.xml",

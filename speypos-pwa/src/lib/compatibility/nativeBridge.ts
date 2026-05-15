@@ -18,19 +18,56 @@ export interface SpeyposNativeBridge {
   closeDay(): string;
   getMenuCategories(): string;
   getMenuItems(): string;
+  createMenuItem(payloadJson: string): string;
+  updateMenuItem(itemId: string, payloadJson: string): string;
+  deleteMenuItem(itemId: string): string;
+  createMenuCategory(payloadJson: string): string;
+  updateMenuCategory(categoryId: string, payloadJson: string): string;
+  deleteMenuCategory(categoryId: string): string;
+  createMenuItemCategoryMapping(payloadJson: string): string;
+  deleteMenuItemCategoryMapping(mappingId: string): string;
+  getMenuItemCategoryMappings(): string;
   getMenuItemCustomizationMappings(): string;
   getMenuCategoryCustomizationMappings(): string;
   getMenuItemToppingMappings(): string;
   getMenuCategoryToppingMappings(): string;
   getCustomizationGroups(): string;
   getCustomizationOptions(): string;
+  createCustomizationGroup(payloadJson: string): string;
+  updateCustomizationGroup(id: string, payloadJson: string): string;
+  deleteCustomizationGroup(id: string): string;
+  createCustomizationOption(payloadJson: string): string;
+  updateCustomizationOption(id: string, payloadJson: string): string;
+  deleteCustomizationOption(id: string): string;
   getToppingGroups(): string;
   getToppingOptions(): string;
+  createToppingGroup(payloadJson: string): string;
+  updateToppingGroup(id: string, payloadJson: string): string;
+  deleteToppingGroup(id: string): string;
+  createToppingOption(payloadJson: string): string;
+  updateToppingOption(id: string, payloadJson: string): string;
+  deleteToppingOption(id: string): string;
+  createMenuItemCustomizationMapping(p: string): string;
+  deleteMenuItemCustomizationMapping(id: string): string;
+  createMenuCategoryCustomizationMapping(p: string): string;
+  deleteMenuCategoryCustomizationMapping(id: string): string;
+  createMenuItemToppingMapping(p: string): string;
+  deleteMenuItemToppingMapping(id: string): string;
+  createMenuCategoryToppingMapping(p: string): string;
+  deleteMenuCategoryToppingMapping(id: string): string;
   getSetupStatus(): string;
   getRuntimeStatus(): string;
   getPendingActions(): string;
   getAllSettings(): string;
+  upsertSetting(key: string, payloadJson: string): string;
   getStore(): string;
+  updateStore(payloadJson: string): string;
+  initialize(payloadJson: string): string;
+  login(payloadJson: string): string;
+  getDeadLetterDetails(): string;
+  purgeDeadLetters(): string;
+  forceRetryAction(actionId: string): string;
+  triggerPendingActionsRetry(): string;
 }
 
 type NativeBridgeMethodName = keyof SpeyposNativeBridge;
@@ -63,8 +100,17 @@ export function callNativeBridge<T, K extends NativeBridgeMethodName>(
   }
 
   try {
-    const bridgeMethod = window.SpeyposNativeBridge[methodName] as (...methodArgs: NativeBridgeMethodArgs<K>) => string;
-    return parseBridgePayload<T>(bridgeMethod(...args), String(methodName));
+    const bridge = window.SpeyposNativeBridge;
+    const bridgeMethod = bridge[methodName];
+    if (typeof bridgeMethod !== 'function') {
+      return {
+        data: null,
+        error: `Bridge method ${String(methodName)} is missing or not a function`,
+      };
+    }
+    // IMPORTANT: Bridge methods must be called on the bridge object to maintain context
+    const result = (bridge[methodName] as any)(...args);
+    return parseBridgePayload<T>(result, String(methodName));
   } catch (error) {
     return {
       data: null,

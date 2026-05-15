@@ -1,9 +1,10 @@
 package com.speypos.shell
 
+import android.graphics.*
+import android.text.TextPaint
 import org.json.JSONArray
 import org.json.JSONObject
-import java.nio.charset.Charset
-import java.text.NumberFormat
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -11,7 +12,11 @@ import java.util.*
 
 class ReceiptRenderer {
     companion object {
-        private const val LINE_WIDTH = 42
+        private const val WIDTH_DOTS = 576 // 72mm * 8 dots/mm = 576 dots
+
+        private const val FONT_SIZE_TITLE = 32f
+        private const val FONT_SIZE_NORMAL = 24f
+        private const val LINE_SPACING = 8
 
         fun renderOrder(
             order: JSONObject,
@@ -21,34 +26,7 @@ class ReceiptRenderer {
         ): ByteArray {
             val isVoided = variant == "VOID" || order.optString("status") == "voided"
             
-            val out = mutableListOf<Byte>()
-
-            // ESC/POS Initialize: 1B 40
-            out.addAll(listOf(0x1B.toByte(), 0x40.toByte()))
-            
-            // Set double-height/width for title
-            out.addAll(listOf(0x1B.toByte(), 0x21.toByte(), 0x30.toByte())) // Double height & width
-            out.addAll(centerAlign())
-            
-            val title = if (isVoided) getTranslation("receipt.void_title", language) else getTranslation("receipt.title", language)
-            out.addAll(textBytes("$title\n"))
-            
-            // Reset to normal font
-            out.addAll(listOf(0x1B.toByte(), 0x21.toByte(), 0x00.toByte()))
-            out.addAll(textBytes("\n"))
-
-            // Order Info
-            out.addAll(leftAlign())
-            val orderId = order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
-            out.addAll(textBytes("${getTranslation("receipt.order_id", language).replace("{orderId}", orderId)}\n"))
-            val timestamp = formatTimestamp(order.optLong(if (isVoided) "voided_at" else "created_at", System.currentTimeMillis()), language)
-            out.addAll(textBytes("${getTranslation("receipt.date", language).replace("{timestamp}", timestamp)}\n"))
-            val staffName = order.optString("staff_name", "Unknown")
-            out.addAll(textBytes("${getTranslation("receipt.staff_label", language)}: $staffName\n"))
-            
-            out.addAll(textBytes("-".repeat(LINE_WIDTH) + "\n"))
-
-            // Items Grouping
+            // 1. Calculate height needed
             val items = order.optJSONArray("items") ?: JSONArray()
             val itemMap = mutableMapOf<String, MutableList<JSONObject>>()
             for (i in 0 until items.length()) {
@@ -56,9 +34,61 @@ class ReceiptRenderer {
                 val name = item.optString("menu_item_name", "Unknown")
                 itemMap.getOrPut(name) { mutableListOf() }.add(item)
             }
+            
+            // Estimate height (Title + OrderInfo + Items + Totals + Footer)
+            var estimatedHeight = 150 // Header area
+            itemMap.forEach { (_, variants) ->
+                estimatedHeight += 40 // Item name
+                estimatedHeight += variants.size * 35 // Variants
+            }
+            estimatedHeight += 150 // Totals + Footer + Feed
+            
+            // 2. Create Bitmap and Canvas
+            val bitmap = Bitmap.createBitmap(WIDTH_DOTS, estimatedHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+            
+            val paint = TextPaint().apply {
+                color = Color.BLACK
+                isAntiAlias = true
+                typeface = Typeface.DEFAULT
+            }
+            
+            var y = 40f
 
+            // 3. Draw Content
+            // Title
+            paint.textSize = FONT_SIZE_TITLE
+            paint.typeface = Typeface.DEFAULT_BOLD
+            val title = if (isVoided) getTranslation("receipt.void_title", language) else getTranslation("receipt.title", language)
+            drawCenteredText(canvas, title, y, paint)
+            y += FONT_SIZE_TITLE + LINE_SPACING * 2
+            
+            // Order Info
+            paint.textSize = FONT_SIZE_NORMAL
+            paint.typeface = Typeface.DEFAULT
+            val orderId = order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
+            canvas.drawText(getTranslation("receipt.order_id", language).replace("{orderId}", orderId), 0f, y, paint)
+            y += FONT_SIZE_NORMAL + LINE_SPACING
+            
+            val timestamp = formatTimestamp(order.optLong(if (isVoided) "voided_at" else "created_at", System.currentTimeMillis()), language)
+            canvas.drawText(getTranslation("receipt.date", language).replace("{timestamp}", timestamp), 0f, y, paint)
+            y += FONT_SIZE_NORMAL + LINE_SPACING
+            
+            val staffName = order.optString("staff_name", "Unknown")
+            canvas.drawText("${getTranslation("receipt.staff_label", language)}: $staffName", 0f, y, paint)
+            y += FONT_SIZE_NORMAL + LINE_SPACING
+            
+            canvas.drawLine(0f, y, WIDTH_DOTS.toFloat(), y, paint)
+            y += LINE_SPACING * 2
+
+            // Items
             itemMap.forEach { (name, variants) ->
-                out.addAll(textBytes("* $name\n"))
+                paint.typeface = Typeface.DEFAULT_BOLD
+                canvas.drawText("* $name", 0f, y, paint)
+                y += FONT_SIZE_NORMAL + LINE_SPACING
+                
+                paint.typeface = Typeface.DEFAULT
                 variants.forEach { v ->
                     val details = mutableListOf<String>()
                     val customs = v.optJSONArray("customizations") ?: JSONArray()
@@ -77,54 +107,100 @@ class ReceiptRenderer {
                     val detailCsv = details.filter { it.isNotBlank() }.joinToString(", ")
                     val qtyText = "x ${v.optInt("quantity", 1)}"
                     if (detailCsv.isNotBlank()) {
-                        out.addAll(textBytes("  - ($detailCsv) $qtyText\n"))
+                        canvas.drawText("  - ($detailCsv) $qtyText", 0f, y, paint)
                     } else {
-                        out.addAll(textBytes("  - $qtyText\n"))
+                        canvas.drawText("  - $qtyText", 0f, y, paint)
                     }
+                    y += FONT_SIZE_NORMAL + LINE_SPACING
                 }
             }
-
-            out.addAll(textBytes("-".repeat(LINE_WIDTH) + "\n"))
+            
+            canvas.drawLine(0f, y, WIDTH_DOTS.toFloat(), y, paint)
+            y += LINE_SPACING * 2
 
             // Totals
             if (isVoided) {
-                out.addAll(textBytes("${getTranslation("receipt.void_reason_label", language)}: ${order.optString("void_reason", "N/A")}\n"))
+                canvas.drawText("${getTranslation("receipt.void_reason_label", language)}: ${order.optString("void_reason", "N/A")}", 0f, y, paint)
+                y += FONT_SIZE_NORMAL + LINE_SPACING
                 val note = order.optString("void_note", "")
                 if (note.isNotBlank()) {
-                    out.addAll(textBytes("${getTranslation("receipt.void_note_label", language)}: $note\n"))
+                    canvas.drawText("${getTranslation("receipt.void_note_label", language)}: $note", 0f, y, paint)
+                    y += FONT_SIZE_NORMAL + LINE_SPACING
                 }
             } else {
-                val total = formatCurrency(order.optInt("total_amount", 0), currencyCode)
-                out.addAll(textBytes(justifyRight("${getTranslation("receipt.total", language).replace("{total}", total)}\n")))
+                val totalStr = getTranslation("receipt.total", language).replace("{total}", formatCurrency(order.optInt("total_amount", 0), currencyCode))
+                val totalWidth = paint.measureText(totalStr)
+                canvas.drawText(totalStr, WIDTH_DOTS - totalWidth, y, paint)
+                y += FONT_SIZE_NORMAL + LINE_SPACING
                 
                 val payment = order.optJSONObject("payment")
                 val pType = payment?.optString("payment_type", "cash") ?: "cash"
                 val pLabel = getTranslation("order_message.${pType}_payment", language)
-                out.addAll(textBytes("${getTranslation("receipt.payment_type", language).replace("{paymentType}", pLabel)}\n"))
+                canvas.drawText("${getTranslation("receipt.payment_type", language).replace("{paymentType}", pLabel)}", 0f, y, paint)
+                y += FONT_SIZE_NORMAL + LINE_SPACING
             }
-
-            out.addAll(textBytes("\n"))
-            out.addAll(centerAlign())
-            out.addAll(textBytes("${getTranslation("receipt.thank_you", language)}\n"))
             
-            // Feed and Cut
-            out.addAll(textBytes("\n\n\n\n"))
-            out.addAll(listOf(0x1D.toByte(), 0x56.toByte(), 0x41.toByte(), 0x00.toByte())) // Feed + Partial Cut
-
-            return out.toByteArray()
+            y += LINE_SPACING * 2
+            drawCenteredText(canvas, getTranslation("receipt.thank_you", language), y, paint)
+            
+            // 4. Crop Bitmap to actual content height
+            val finalHeight = (y + 40).toInt().coerceAtMost(estimatedHeight)
+            val cropped = Bitmap.createBitmap(bitmap, 0, 0, WIDTH_DOTS, finalHeight)
+            
+            // 5. Convert to ESC/POS Raster format
+            return bitmapToEscPos(cropped)
         }
 
-        private fun textBytes(text: String): List<Byte> {
-            return text.toByteArray(Charset.forName("UTF-8")).toList()
+        private fun drawCenteredText(canvas: Canvas, text: String, y: Float, paint: Paint) {
+            val width = paint.measureText(text)
+            canvas.drawText(text, (WIDTH_DOTS - width) / 2, y, paint)
         }
 
-        private fun centerAlign() = listOf(0x1B.toByte(), 0x61.toByte(), 0x01.toByte())
-        private fun leftAlign() = listOf(0x1B.toByte(), 0x61.toByte(), 0x00.toByte())
+        private fun bitmapToEscPos(bitmap: Bitmap): ByteArray {
+            val width = bitmap.width
+            val height = bitmap.height
+            val widthBytes = (width + 7) / 8
+            val bos = ByteArrayOutputStream()
 
-        private fun justifyRight(text: String): String {
-            val trimmed = text.trim()
-            if (trimmed.length >= LINE_WIDTH) return text
-            return " ".repeat(LINE_WIDTH - trimmed.length) + trimmed + "\n"
+            // ESC/POS GS v 0 command: Raster bit image
+            // 1D 76 30 m xL xH yL yH d1...dk
+            // m=0 (Normal mode)
+            bos.write(0x1D)
+            bos.write(0x76)
+            bos.write(0x30)
+            bos.write(0x00)
+            bos.write(widthBytes % 256)
+            bos.write(widthBytes / 256)
+            bos.write(height % 256)
+            bos.write(height / 256)
+
+            for (y in 0 until height) {
+                for (xByte in 0 until widthBytes) {
+                    var byte = 0
+                    for (bit in 0 until 8) {
+                        val x = xByte * 8 + bit
+                        if (x < width) {
+                            val pixel = bitmap.getPixel(x, y)
+                            val r = (pixel shr 16) and 0xff
+                            val g = (pixel shr 8) and 0xff
+                            val b = pixel and 0xff
+                            val gray = (r + g + b) / 3
+                            if (gray < 128) { // Black pixel
+                                byte = byte or (1 shl (7 - bit))
+                            }
+                        }
+                    }
+                    bos.write(byte)
+                }
+            }
+            
+            // Add feed and cut
+            bos.write(0x1D)
+            bos.write(0x56)
+            bos.write(0x41)
+            bos.write(0x00)
+
+            return bos.toByteArray()
         }
 
         private fun formatTimestamp(millis: Long, language: String): String {
@@ -137,7 +213,7 @@ class ReceiptRenderer {
         private fun formatCurrency(minorUnits: Int, code: String): String {
             val amount = minorUnits.toDouble() / (if (code == "KHR") 1.0 else 100.0)
             val symbol = if (code == "KHR") "៛" else "$"
-            val formatter = NumberFormat.getNumberInstance(Locale.US)
+            val formatter = java.text.NumberFormat.getNumberInstance(Locale.US)
             if (code == "KHR") {
                 formatter.maximumFractionDigits = 0
             } else {

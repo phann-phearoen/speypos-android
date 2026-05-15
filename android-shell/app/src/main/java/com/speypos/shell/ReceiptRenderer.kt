@@ -15,7 +15,7 @@ class ReceiptRenderer {
         private const val WIDTH_DOTS = 576 // 72mm * 8 dots/mm = 576 dots
 
         private const val FONT_SIZE_TITLE = 32f
-        private const val FONT_SIZE_NORMAL = 24f
+        private const val FONT_SIZE_NORMAL = 28f
         private const val LINE_SPACING = 8
 
         fun renderOrder(
@@ -36,12 +36,12 @@ class ReceiptRenderer {
             }
             
             // Estimate height (Title + OrderInfo + Items + Totals + Footer)
-            var estimatedHeight = 150 // Header area
+            var estimatedHeight = 180 // Header area
             itemMap.forEach { (_, variants) ->
-                estimatedHeight += 40 // Item name
+                estimatedHeight += 46 // Item name
                 estimatedHeight += variants.size * 35 // Variants
             }
-            estimatedHeight += 150 // Totals + Footer + Feed
+            estimatedHeight += 180 // Totals + Footer + Feed
             
             // 2. Create Bitmap and Canvas
             val bitmap = Bitmap.createBitmap(WIDTH_DOTS, estimatedHeight, Bitmap.Config.ARGB_8888)
@@ -80,7 +80,7 @@ class ReceiptRenderer {
             y += FONT_SIZE_NORMAL + LINE_SPACING
             
             canvas.drawLine(0f, y, WIDTH_DOTS.toFloat(), y, paint)
-            y += LINE_SPACING * 2
+            y += LINE_SPACING * 4
 
             // Items
             itemMap.forEach { (name, variants) ->
@@ -116,7 +116,7 @@ class ReceiptRenderer {
             }
             
             canvas.drawLine(0f, y, WIDTH_DOTS.toFloat(), y, paint)
-            y += LINE_SPACING * 2
+            y += LINE_SPACING * 4
 
             // Totals
             if (isVoided) {

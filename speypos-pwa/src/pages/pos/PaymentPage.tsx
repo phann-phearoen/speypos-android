@@ -80,8 +80,14 @@ export default function PaymentPage() {
   const { orderItems, orderTotal, customerType } = state;
 
   const receivedAmountCents = normalizeInput(parseFloat(inputValue) || 0);
-  const change = receivedAmountCents - orderTotal;
-  const canComplete = paymentType === 'qr' || receivedAmountCents >= orderTotal;
+
+  // Assume exact amount if input is empty for cash
+  const effectiveReceivedAmount = (inputValue === '' && paymentType === 'cash')
+    ? orderTotal
+    : receivedAmountCents;
+
+  const change = effectiveReceivedAmount - orderTotal;
+  const canComplete = paymentType === 'qr' || effectiveReceivedAmount >= orderTotal;
 
   // Sync payment state to customer display (debounced)
   const displayUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -100,7 +106,7 @@ export default function PaymentPage() {
     displayUpdateTimerRef.current = setTimeout(() => {
       updateToPaying(
         orderTotal,
-        receivedAmountCents > 0 ? receivedAmountCents : undefined,
+        effectiveReceivedAmount > 0 ? effectiveReceivedAmount : undefined,
         change >= 0 ? change : undefined,
         paymentType
       );
@@ -167,7 +173,7 @@ export default function PaymentPage() {
           ? {
               payment_type: 'cash',
               amount: orderTotal,
-              received_cash: receivedAmountCents,
+              received_cash: effectiveReceivedAmount,
               change: change,
             }
           : {
@@ -203,7 +209,7 @@ export default function PaymentPage() {
       navigate(`/pos/complete?shiftId=${shiftId}&orderId=${createResult.data.id}`, {
         state: {
           total: orderTotal,
-          received: paymentType === 'cash' ? receivedAmountCents : orderTotal,
+          received: paymentType === 'cash' ? effectiveReceivedAmount : orderTotal,
           change: paymentType === 'cash' ? change : 0,
           paymentType,
         },

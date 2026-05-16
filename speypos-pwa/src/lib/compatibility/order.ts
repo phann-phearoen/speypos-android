@@ -39,7 +39,12 @@ const httpOrderCompatibilityProvider: OrderCompatibilityProvider = {
 const nativeOrderCompatibilityProvider: OrderCompatibilityProvider = {
   provider: 'native',
   getOrders: async () => {
-    const result = callNativeBridge<Order[]>('getOrders');
+    const start = performance.now();
+    const result = await callNativeBridge<Order[]>('getOrders', 50);
+    const totalTime = performance.now() - start;
+    if (totalTime > 100) {
+        console.warn(`SLOW getOrders wrapper: ${totalTime.toFixed(2)}ms`);
+    }
     if (!result.error) {
       return result;
     }
@@ -47,7 +52,7 @@ const nativeOrderCompatibilityProvider: OrderCompatibilityProvider = {
     return httpOrderCompatibilityProvider.getOrders();
   },
   getOrder: async (orderId: string) => {
-    const result = callNativeBridge<Order[]>('getOrders');
+    const result = callNativeBridge<Order[]>('getOrders', 100);
     if (!result.error && result.data) {
       const order = result.data.find((entry) => entry.id === orderId);
       if (order) {
@@ -58,7 +63,7 @@ const nativeOrderCompatibilityProvider: OrderCompatibilityProvider = {
     return httpOrderCompatibilityProvider.getOrder(orderId);
   },
   getOrdersByShift: async (shiftId: string) => {
-    const result = callNativeBridge<Order[]>('getOrders');
+    const result = callNativeBridge<Order[]>('getOrders', -1);
     if (!result.error && result.data) {
       return {
         data: result.data.filter((entry) => entry.shift_id === shiftId),
@@ -69,7 +74,7 @@ const nativeOrderCompatibilityProvider: OrderCompatibilityProvider = {
     return httpOrderCompatibilityProvider.getOrdersByShift(shiftId);
   },
   getOrdersByStaff: async (staffId: string) => {
-    const result = callNativeBridge<Order[]>('getOrders');
+    const result = callNativeBridge<Order[]>('getOrders', -1);
     if (!result.error && result.data) {
       return {
         data: result.data.filter((entry) => entry.staff_id === staffId),
@@ -80,7 +85,7 @@ const nativeOrderCompatibilityProvider: OrderCompatibilityProvider = {
     return httpOrderCompatibilityProvider.getOrdersByStaff(staffId);
   },
   getOrdersByShiftAndStaff: async (shiftId: string, staffId: string) => {
-    const result = callNativeBridge<Order[]>('getOrders');
+    const result = callNativeBridge<Order[]>('getOrders', -1);
     if (!result.error && result.data) {
       return {
         data: result.data.filter((entry) => entry.shift_id === shiftId && entry.staff_id === staffId),

@@ -161,6 +161,7 @@ class MainActivity : AppCompatActivity() {
   }
 
   private fun handleNativeApiRequest(request: WebResourceRequest): WebResourceResponse? {
+    val start = System.currentTimeMillis()
     val path = request.url.path ?: return null
     
     if (request.method == "OPTIONS") {
@@ -188,7 +189,10 @@ class MainActivity : AppCompatActivity() {
       path == "/api/cloud-sync-settings" -> nativeBridge.getCloudSyncSettings()
       path == "/api/staff" -> nativeBridge.getStaff()
       path == "/api/shifts" -> nativeBridge.getShifts()
-      path == "/api/orders" -> nativeBridge.getOrders()
+      path == "/api/orders" -> {
+        val limit = request.url.getQueryParameter("limit")?.toIntOrNull() ?: -1
+        nativeBridge.getOrders(limit)
+      }
       path == "/api/menu-categories" -> nativeBridge.getMenuCategories()
       path == "/api/menu-items" -> nativeBridge.getMenuItems()
       path.startsWith("/api/menu-item") || path.startsWith("/api/menu-category") || path.startsWith("/api/staff/") -> "{\"data\":{}}"
@@ -206,12 +210,16 @@ class MainActivity : AppCompatActivity() {
       path == "/api/print-queue/status" -> nativeBridge.getPrintQueueStatus()
       path == "/api/runtime/status" -> nativeBridge.getRuntimeStatus()
       path == "/api/runtime/pending-actions" -> nativeBridge.getPendingActions()
+      path == "/api/display/session" -> {
+        Log.d("SpeyposPerf", "Display session update received (ignored)")
+        "{\"data\":null}" 
+      }
       path == "/api/print-queue/retry" -> nativeBridge.triggerPrintQueueRetry()
       path == "/api/pending-actions/retry" -> nativeBridge.triggerPendingActionsRetry()
       else -> null
     }
 
-    return if (jsonResponse != null) {
+    val response = if (jsonResponse != null) {
       WebResourceResponse(
         "application/json",
         "UTF-8",
@@ -227,6 +235,12 @@ class MainActivity : AppCompatActivity() {
     } else {
       null
     }
+    
+    val totalTime = System.currentTimeMillis() - start
+    if (totalTime > 100) {
+        Log.w("SpeyposPerf", "SLOW API Request [${request.method} $path]: ${totalTime}ms")
+    }
+    return response
   }
 
   private fun loadFrontend() {

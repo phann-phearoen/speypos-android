@@ -939,13 +939,14 @@ class NativeConfigStore(private val context: Context) {
     }
   }
 
-  fun readOrders(): JSONArray {
+  fun readOrders(limit: Int = -1): JSONArray {
     val orders = readArray(PREF_NATIVE_ORDERS_JSON)
     val staff = readStaff()
     val catalogItems = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
 
+    val count = if (limit > 0) limit.coerceAtMost(orders.length()) else orders.length()
     val enriched = JSONArray()
-    for (i in 0 until orders.length()) {
+    for (i in 0 until count) {
       val order = orders.optJSONObject(i) ?: continue
       val staffId = order.optString("staff_id")
 
@@ -1192,14 +1193,13 @@ class NativeConfigStore(private val context: Context) {
         .put("print_job", JSONObject.NULL)
     }
 
+    // Enqueue the job and trigger background processing. 
+    // We no longer call processPrintQueue synchronously to avoid blocking the UI.
     val job = enqueuePrintJob(orderId, if (allowReprint) "reprint" else "initial")
-    val processResult = processPrintQueue("inline", 20)
-    val latest = findOrderById(readOrders(), orderId)
-      ?: throw IllegalArgumentException("Order not found after print processing: $orderId")
-
-    return JSONObject(latest.toString())
+    
+    return JSONObject(target.toString())
       .put("print_job", job)
-      .put("print_queue", processResult)
+      .put("print_queue", JSONObject().put("status", "enqueued_background"))
   }
 
   fun processPrintQueue(context: String = "manual", maxAttemptsPerRun: Int = 20): JSONObject {
@@ -1444,6 +1444,7 @@ class NativeConfigStore(private val context: Context) {
                 .put("updated_at", now)
               queue.put(index, reset)
               persistPrintQueue(queue)
+              triggerBackgroundWorker()
               return reset
             }
           }
@@ -1467,6 +1468,7 @@ class NativeConfigStore(private val context: Context) {
         queue.put(job)
         Log.i("NativeConfigStore", "enqueuePrintJob: Job enqueued. New queue size: ${queue.length()}. JobID: $jobId")
         persistPrintQueue(queue)
+        triggerBackgroundWorker()
         return job
     }
   }
@@ -2141,16 +2143,37 @@ class NativeConfigStore(private val context: Context) {
   fun getContext(): Context = context
 
   private fun readArray(key: String): JSONArray {
-    val raw = getPreferences().getString(key, null) ?: return JSONArray()
+    val start = System.currentTimeMillis()
+    val raw = getPreferences().getString(key, null)
+    val readTime = System.currentTimeMillis() - start
+    
+    if (raw == null) return JSONArray()
+    
     return try {
-      JSONArray(raw)
+      val result = JSONArray(raw)
+      val totalTime = System.currentTimeMillis() - start
+      if (totalTime > 50) {
+          Log.w("SpeyposPerf", "SLOW readArray key: $key, total: ${totalTime}ms (read: ${readTime}ms, size: ${raw.length})")
+      }
+      result
     } catch (_: Exception) {
       JSONArray()
     }
   }
 
   private fun persistArray(key: String, data: JSONArray) {
-    getPreferences().edit().putString(key, data.toString()).apply()
+    val start = System.currentTimeMillis()
+    val stringData = data.toString()
+    val toStringTime = System.currentTimeMillis() - start
+    
+    val editStart = System.currentTimeMillis()
+    getPreferences().edit().putString(key, stringData).apply()
+    val applyTime = System.currentTimeMillis() - editStart
+    
+    val totalTime = System.currentTimeMillis() - start
+    if (totalTime > 100) {
+        Log.w("SpeyposPerf", "SLOW persistArray key: $key, total: ${totalTime}ms (json: ${toStringTime}ms, apply: ${applyTime}ms, size: ${stringData.length})")
+    }
   }
 
   private fun persistShifts(shifts: JSONArray) {
@@ -2162,7 +2185,9 @@ class NativeConfigStore(private val context: Context) {
   }
 
   private fun persistOrders(orders: JSONArray) {
+    val start = System.currentTimeMillis()
     persistArray(PREF_NATIVE_ORDERS_JSON, orders)
+    Log.d("SpeyposPerf", "persistOrders count: ${orders.length()}, time: ${System.currentTimeMillis() - start}ms")
   }
 
   private fun persistPrintQueue(queue: JSONArray) {
@@ -2203,18 +2228,21 @@ class NativeConfigStore(private val context: Context) {
     actions.put(action)
     persistPendingActions(actions)
 
-    // Trigger immediate background sweep for ACTIONS
+    triggerBackgroundWorker()
+
+    return action
+  }
+
+  private fun triggerBackgroundWorker() {
     try {
         val workManager = WorkManager.getInstance(context)
         val fastSweep = OneTimeWorkRequestBuilder<PrintQueueWorker>() 
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        workManager.enqueueUniqueWork("pending-actions-fast-sweep", ExistingWorkPolicy.REPLACE, fastSweep)
+        workManager.enqueueUniqueWork("background-tasks-fast-sweep", ExistingWorkPolicy.REPLACE, fastSweep)
     } catch (e: Exception) {
-        Log.w("NativeConfigStore", "Failed to trigger pending-actions worker: ${e.message}")
+        Log.w("NativeConfigStore", "Failed to trigger background worker: ${e.message}")
     }
-
-    return action
   }
 
   fun getTelegramSettings(): JSONObject {

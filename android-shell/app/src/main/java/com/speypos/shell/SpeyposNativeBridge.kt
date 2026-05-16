@@ -1,5 +1,6 @@
 package com.speypos.shell
 
+import android.util.Log
 import android.webkit.JavascriptInterface
 import java.time.Instant
 import org.json.JSONArray
@@ -90,11 +91,35 @@ class SpeyposNativeBridge(
   }
 
   @JavascriptInterface
-  fun getOrders(): String {
-    return JSONObject()
-      .put("data", configStore.readOrders())
+  fun getOrders(limit: Int): String {
+    val start = System.currentTimeMillis()
+    val orders = configStore.readOrders(limit)
+    val readTime = System.currentTimeMillis() - start
+    
+    val dataObj = JSONObject().put("data", orders).put("error", JSONObject.NULL)
+    val toStringStart = System.currentTimeMillis()
+    val result = dataObj.toString()
+    val toStringTime = System.currentTimeMillis() - toStringStart
+    
+    val totalTime = System.currentTimeMillis() - start
+    if (totalTime > 200) {
+        Log.w("SpeyposPerf", "SLOW getOrders(limit=$limit): ${totalTime}ms (read: ${readTime}ms, json: ${toStringTime}ms, size: ${result.length})")
+    } else {
+        Log.d("SpeyposPerf", "getOrders(limit=$limit): ${totalTime}ms")
+    }
+    return result
+  }
+
+  @JavascriptInterface
+  fun getAllOrders(): String {
+    val start = System.currentTimeMillis()
+    val orders = configStore.readOrders(-1)
+    val result = JSONObject()
+      .put("data", orders)
       .put("error", JSONObject.NULL)
       .toString()
+    Log.d("SpeyposPerf", "getAllOrders total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
@@ -242,10 +267,13 @@ class SpeyposNativeBridge(
 
   @JavascriptInterface
   fun getStaff(): String {
-    return JSONObject()
+    val start = System.currentTimeMillis()
+    val result = JSONObject()
       .put("data", configStore.readStaff())
       .put("error", JSONObject.NULL)
       .toString()
+    Log.d("SpeyposPerf", "getStaff total time: ${System.currentTimeMillis() - start}ms")
+    return result
   }
 
   @JavascriptInterface
@@ -340,90 +368,104 @@ class SpeyposNativeBridge(
 
   @JavascriptInterface
   fun getShifts(): String {
-    return JSONObject()
-      .put("data", configStore.readShifts())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val shifts = configStore.readShifts()
+    val dataObj = JSONObject().put("data", shifts).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getShifts total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getMenuItemCustomizationMappings(): String {
-    return JSONObject()
-      .put("data", configStore.readMenuItemCustomizationMappings())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readMenuItemCustomizationMappings()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getMenuItemCustomizationMappings total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getMenuCategoryCustomizationMappings(): String {
-    return JSONObject()
-      .put("data", configStore.readMenuCategoryCustomizationMappings())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readMenuCategoryCustomizationMappings()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getMenuCategoryCustomizationMappings total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getMenuItemToppingMappings(): String {
-    return JSONObject()
-      .put("data", configStore.readMenuItemToppingMappings())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readMenuItemToppingMappings()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getMenuItemToppingMappings total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getMenuCategoryToppingMappings(): String {
-    return JSONObject()
-      .put("data", configStore.readMenuCategoryToppingMappings())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readMenuCategoryToppingMappings()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getMenuCategoryToppingMappings total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getCustomizationGroups(): String {
-    return JSONObject()
-      .put("data", configStore.readCustomizationGroups())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readCustomizationGroups()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getCustomizationGroups total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getCustomizationOptions(): String {
-    return JSONObject()
-      .put("data", configStore.readCustomizationOptions())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readCustomizationOptions()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getCustomizationOptions total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getToppingGroups(): String {
-    return JSONObject()
-      .put("data", configStore.readToppingGroups())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readToppingGroups()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getToppingGroups total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getToppingOptions(): String {
-    return JSONObject()
-      .put("data", configStore.readToppingOptions())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val dataObj = JSONObject().put("data", configStore.readToppingOptions()).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getToppingOptions total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getMenuCategories(): String {
-    return JSONObject()
-      .put("data", configStore.readMenuCategories())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val cats = configStore.readMenuCategories()
+    val dataObj = JSONObject().put("data", cats).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getMenuCategories total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getMenuItems(): String {
-    return JSONObject()
-      .put("data", configStore.readMenuItems())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val items = configStore.readMenuItems()
+    val dataObj = JSONObject().put("data", items).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getMenuItems total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
@@ -650,11 +692,15 @@ class SpeyposNativeBridge(
 
   @JavascriptInterface
   fun getSetupStatus(): String {
-    return "{\"data\":{\"initialized\":${configStore.isSystemInitialized()}},\"error\":null}"
+    val start = System.currentTimeMillis()
+    val result = "{\"data\":{\"initialized\":${configStore.isSystemInitialized()}},\"error\":null}"
+    Log.d("SpeyposPerf", "getSetupStatus total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getRuntimeStatus(): String {
+    val start = System.currentTimeMillis()
     val startupPhase = runtimeState.startupPhase
     val updatedAt = Instant.now().toString()
     val queueStatus = configStore.getPrintQueueStatus()
@@ -673,7 +719,7 @@ class SpeyposNativeBridge(
       if (deadLetterActions > 0) put("pending_action_dead_letter")
     }
 
-    return JSONObject()
+    val result = JSONObject()
       .put("data", JSONObject()
         .put("startupPhase", startupPhase)
         .put("recoveryRunning", false)
@@ -686,10 +732,14 @@ class SpeyposNativeBridge(
       )
       .put("error", JSONObject.NULL)
       .toString()
+    
+    Log.d("SpeyposPerf", "getRuntimeStatus total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getPendingActions(): String {
+    val start = System.currentTimeMillis()
     val startupPhase = runtimeState.startupPhase
     val queueStatus = configStore.getPrintQueueStatus()
     val actionsStatus = configStore.getPendingActionsStatus()
@@ -716,7 +766,7 @@ class SpeyposNativeBridge(
       if (actionsStatus.optInt("dead_letter_actions", 0) > 0) put("pending_action_dead_letter")
     }
 
-    return JSONObject()
+    val result = JSONObject()
       .put("data", JSONObject()
         .put("hasUnprintedOrders", pendingPrintJobs > 0)
         .put("unprintedOrdersCount", pendingPrintJobs)
@@ -734,6 +784,9 @@ class SpeyposNativeBridge(
       )
       .put("error", JSONObject.NULL)
       .toString()
+    
+    Log.d("SpeyposPerf", "getPendingActions total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
@@ -832,17 +885,21 @@ class SpeyposNativeBridge(
 
   @JavascriptInterface
   fun getAllSettings(): String {
-    return JSONObject()
-      .put("data", configStore.readSettings())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val settings = configStore.readSettings()
+    val dataObj = JSONObject().put("data", settings).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getAllSettings total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 
   @JavascriptInterface
   fun getStore(): String {
-    return JSONObject()
-      .put("data", configStore.readStore())
-      .put("error", JSONObject.NULL)
-      .toString()
+    val start = System.currentTimeMillis()
+    val store = configStore.readStore()
+    val dataObj = JSONObject().put("data", store).put("error", JSONObject.NULL)
+    val result = dataObj.toString()
+    Log.d("SpeyposPerf", "getStore total time: ${System.currentTimeMillis() - start}ms, size: ${result.length}")
+    return result
   }
 }

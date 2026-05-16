@@ -1,0 +1,311 @@
+version: 1
+generated_at: 2026-05-15
+scope: speypos-local cloud sync ingestion behavior
+
+source_of_truth:
+  ingest_service: speypos-local/src/services/cloudIngest.service.js
+  handshake_service: speypos-local/src/services/cloudHandshake.service.js
+  sync_manager: speypos-local/src/sync/syncManager.js
+  queue_persistence: speypos-local/src/sync/queue.js
+  order_repo: speypos-local/src/storage/repositories/order.repo.js
+  settings_service: speypos-local/src/services/settings.service.js
+  settings_controller: speypos-local/src/controllers/settings.controller.js
+  sync_controller: speypos-local/src/controllers/sync.controller.js
+  sync_route: speypos-local/src/routes/sync.routes.js
+  environment: speypos-local/src/config/env.js
+
+purpose:
+  summary: >
+    Cloud sync sends completed and voided order data from the local POS to a
+    remote cloud ingestion service. The cloud uses this data for analytics
+    and ingredient tracking. Every finalized order (completed or voided) from
+    a shift must eventually be uploaded exactly once.
+  scope:
+    - All orders with status completed or voided
+    - Both regular completed orders and voided orders with void metadata
+    - No draft or pending orders are ever uploaded
+
+connection_contract:
+  default_base_url:
+    source_env: CLOUD_BASE_URL
+    default: https://speypos-cloud-api.ryong.net
+    normalization: trailing slashes are stripped before use
+  authentication:
+    header: X-Api-Key
+    value_source: settings cloud.sync.api_key
+  content_type: application/json
+  timeout_ms:
+    source_env: CLOUD_FETCH_TIMEOUT_MS
+    default: 15000
+    min: 1000
+    max: 120000
+  error_structure:
+    success_condition: HTTP 2xx
+    error_body_path: errors[0].message
+    error_code_path: errors[0].code
+    request_id_path: meta.request_id
+
+settings_contract:
+  setting_key: cloud.sync
+  value_type: json
+  category: Cloud Sync
+  default_value:
+    version: 1
+    enabled: false
+    api_key: ""
+    base_url: "<env.CLOUD_BASE_URL>"
+    store_id: null
+    store_linked_at: null
+    store_client_name: null
+    store_last_seen_at: null
+
+handshake_contract:
+  purpose: >
+    Resolves the canonical cloud store identity (store_id) using an API key.
+    Must complete before any order upload can proceed. On success the store
+    metadata is persisted back into cloud.sync settings.
+  endpoint: POST <base_url>/pos/handshake
+  request_body: "{}"
+  auth: X-Api-Key header
+  success_response_path: data.store_client | data.store | data
+  resolved_fields:
+    store_id:
+      path: data.store_client.id | data.store_id
+      notes: Numeric IDs are converted to string.
+    store_linked_at: data.store_client.linked_at (nullable)
+    store_client_name: data.store_client.name (nullable)
+    store_last_seen_at: data.store_client.last_seen_at (nullable)
+  error_behavior:
+    - Throws with message, code, status, and requestId.
+    - Settings controller returns HTTP 400 with error details to the client.
+  trigger_conditions:
+    - api_key is set and api_key has changed compared to saved value
+    - api_key is set and base_url has changed compared to saved value
+    - api_key is set and store_id is currently missing in settings
+  no_handshake_if:
+    - api_key is absent or empty
+
+upload_protocol:
+  step_1_create_batch:
+    method: POST
+    url: '<base_url>/stores/<store_id>/event_batches'
+    auth: X-Api-Key header
+    request_body:
+      event_batch:
+        business_date: "<shift.date>"
+        source: shift_close | manual
+    success_response:
+      batch_id_path: data.event_batch.id | data.id
+    error_behavior:
+      - Throws if batch_id is missing in response.
+  step_2_post_events:
+    method: POST
+    url: '<base_url>/stores/<store_id>/event_batches/<batch_id>/events'
+    auth: X-Api-Key header
+    request_body:
+      event: '<order event object (see event_structure below)>'
+    behavior:
+      - One POST per order, in a sequential loop.
+      - All orders in the current batch share the same batch_id from step 1.
+  source_values:
+    shift_close: flush job triggered by shift close or manual API request
+    manual: mini-batch job triggered during an active shift
+
+event_structure:
+  event_type: ORDER_CREATED
+  occurred_at:
+    source: order.created_at
+    format: ISO 8601 string
+    fallback: current time
+  payload:
+    id: order.id (uuid)
+    shift_id: order.shift_id (uuid)
+    staff_id: order.staff_id (uuid)
+    status: order.status (completed | voided)
+    total:
+      source: order.total_amount
+      type: decimal major unit (see currency_conversion)
+    total_items: order.total_items (integer)
+    currency: store currency code (USD | KHR)
+    void_reason: order.void_reason | null
+    void_note: order.void_note | null
+    voided_at: ISO 8601 | null
+    voided_by: order.voided_by | null
+    items:
+      - id: order_item.id
+        menu_item_id: order_item.menu_item_id
+        name: menu_item_name | name | null
+        quantity: integer
+        unit_price: decimal major unit
+        total_price: decimal major unit (unit_price * quantity)
+        customizations:
+          - id: customization.id
+            name: string
+            option_type: string
+            value: string
+            price: decimal major unit
+        toppings:
+          - id: topping.id
+            topping_option_id: string
+            name: string
+            unit_label: string
+            unit_price: decimal major unit
+            quantity: integer | decimal
+            total_price: decimal major unit
+    payments:
+      - id: payment.id
+        status: string
+        payment_type: cash | qr
+        amount: decimal major unit
+        received_cash: decimal major unit | null
+        change: decimal major unit | null
+        created_at: ISO 8601 string
+
+currency_conversion:
+  input_unit: integer minor unit (same as local storage)
+  metadata:
+    USD:
+      minor_unit: 2
+    KHR:
+      minor_unit: 0
+  formula: display_value = integerAmount / (10 ^ minor_unit)
+  precision: rounded to minor_unit decimal places
+  currency_resolution:
+    primary: store currency from current shift
+    fallback: USD
+
+sync_queue:
+  persistence:
+    format: JSON array written to disk
+    path_config_key: paths.syncQueue
+    default_path: data/sync_queue.json
+    write_strategy: atomic (write to .tmp file, then rename to final path)
+    corruption_behavior:
+      - Corrupted file is snapped to <path>.bad.<timestamp> before re-throwing.
+      - Runtime status is set to degraded with reason sync_queue_parse_failed.
+  job_schema:
+    id: uuid
+    type: orders_shift_mini_batch | orders_shift_flush
+    shiftId: uuid
+    created_at: ISO 8601
+    last_attempt_at: ISO 8601 | null
+    retry_count: integer (starts at 0)
+    next_attempt_at: ISO 8601
+  duplicate_prevention:
+    rule: Only one job of the same type+shiftId pair may exist in the queue at a time.
+    behavior: Returns enqueued=false with reason=duplicate when already queued.
+
+job_types:
+  orders_shift_mini_batch:
+    purpose: >
+      Proactive mid-shift sync. Runs while the shift is still open to keep
+      the cloud up to date without waiting for shift close.
+    trigger:
+      event: payment created or order voided in order.controller.js
+      condition: 'finalized unsynced order count for active shift >= SYNC_MINI_BATCH_SIZE'
+    processing_rules:
+      - Runs only if shift is still active at execution time; skipped otherwise.
+      - Fetches at most SYNC_MINI_BATCH_SIZE unsynced orders per run.
+      - Single batch per job execution.
+      - source field sent to cloud: manual
+  orders_shift_flush:
+    purpose: >
+      Full drain of all unsynced orders for a closed shift. Loops until all
+      orders have been uploaded or a failure occurs.
+    trigger:
+      events:
+        - Shift closed in shift.controller.js (automatic, background)
+        - POST /api/sync/orders (manual admin-authenticated HTTP endpoint)
+    processing_rules:
+      - Runs only if shift is closed at execution time; skipped otherwise.
+      - Loops in pages of SYNC_MINI_BATCH_SIZE until all orders are synced.
+      - source field sent to cloud: shift_close
+
+batch_size_configuration:
+  source_env: SYNC_MINI_BATCH_SIZE
+  default: 20
+  min: 1
+  max: 200
+  applies_to:
+    - orders_shift_mini_batch query limit
+    - orders_shift_flush page size per loop iteration
+
+worker_configuration:
+  interval_ms:
+    source_env: SYNC_WORKER_INTERVAL_MS
+    default: 5000
+    min: 1000
+    max: 120000
+    behavior: setInterval loop; unref'd so it does not block Node.js exit
+  startup_behavior:
+    - Worker polls queue on the configured interval.
+    - An immediate process.nextTick run fires when server starts or a job is enqueued.
+
+retry_policy:
+  strategy: exponential backoff per job
+  retry_base_ms:
+    source_env: SYNC_RETRY_BASE_MS
+    default: 5000
+    min: 1000
+    max: 300000
+  retry_max_ms:
+    source_env: SYNC_RETRY_MAX_MS
+    default: 60000
+    min: 1000
+    max: 900000
+  formula: 'delay = min(SYNC_RETRY_BASE_MS * 2^(retry_count - 1), SYNC_RETRY_MAX_MS)'
+  behavior:
+    - next_attempt_at is set to now + computed delay after each failure.
+    - Worker skips a job whose next_attempt_at is in the future.
+    - retry_count and last_attempt_at are updated on each failed attempt.
+    - Queue is processed sequentially; first failing job halts the current run.
+    - No maximum retry count; jobs retry indefinitely until they succeed.
+
+idempotency:
+  tracking_field: Order.cloud_sync_at (timestamp set when upload succeeds)
+  eligible_orders:
+    status: completed OR voided
+    condition: cloud_sync_at IS NULL
+  mark_synced:
+    operation: UPDATE Order SET cloud_sync_at = now() WHERE id IN (uploaded_ids)
+    timing: Immediately after uploadOrdersBatch reports success.
+  guards:
+    - Only orders with cloud_sync_at IS NULL are fetched for upload.
+    - Upload batch is the smallest unit of idempotency; individual events within
+      a batch are not independently retried.
+
+send_guard_rules:
+  - If cloud.sync.enabled is false, skip and return retryable=true, reason=disabled.
+  - If api_key or base_url is missing, skip and return retryable=true, reason=missing_config.
+  - If store_id is missing, skip and return retryable=true, reason=missing_cloud_store.
+  - If orders array is empty, skip and return success=true, skipped=true.
+
+manual_api_endpoint:
+  route: 'POST /api/sync/orders'
+  auth: admin required
+  request_body:
+    shift_id: uuid (required)
+  success_response:
+    202:
+      condition: job was newly enqueued
+      body:
+        enqueued: true
+    200:
+      condition: job was already queued (duplicate)
+      body:
+        enqueued: false
+        reason: duplicate
+  behavior:
+    - Enqueues an orders_shift_flush job for the given shift.
+    - Triggers processSyncQueue immediately via process.nextTick.
+
+native_alignment_notes:
+  - The Android implementation must replicate the same two-step upload protocol
+    (create batch, then post individual events).
+  - store_id must be resolved via handshake before any upload is attempted.
+  - The batch page size (SYNC_MINI_BATCH_SIZE / 20) should be configurable.
+  - Atomic queue persistence (write temp then rename) is critical to avoid corruption
+    on Android where the process may be killed mid-write.
+  - cloud_sync_at idempotency tracking must be maintained so no order is uploaded twice.
+  - Retry backoff and job-level deduplication semantics should match the Node.js
+    reference behavior to ensure consistent cloud ingestion coverage.

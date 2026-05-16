@@ -8,10 +8,61 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
 import org.json.JSONArray
 import org.json.JSONObject
 
 class NativeConfigStore(private val context: Context) {
+
+  companion object {
+    private val printLock = ReentrantLock()
+    private val globalFileLock = Any()
+    
+    private const val PREFERENCES_NAME = "speypos_shell"
+    private const val PREF_SYSTEM_INITIALIZED = "system.initialized"
+    private const val PREF_NATIVE_ORDERS_JSON = "native.orders.json"
+    private const val PREF_NATIVE_STAFF_JSON = "native.staff.json"
+    private const val PREF_NATIVE_SHIFTS_JSON = "native.shifts.json"
+    private const val PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON = "native.menu.item.category.mappings.json"
+    private const val PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON = "native.menu.item.customization.mappings.json"
+    private const val PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON = "native.menu.category.customization.mappings.json"
+    private const val PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON = "native.menu.item.topping.mappings.json"
+    private const val PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON = "native.menu.category.topping.mappings.json"
+    private const val PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON = "native.customization.groups.json"
+    private const val PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON = "native.customization.options.json"
+    private const val PREF_NATIVE_TOPPING_GROUPS_JSON = "native.topping.groups.json"
+    private const val PREF_NATIVE_TOPPING_OPTIONS_JSON = "native.topping.options.json"
+    private const val PREF_NATIVE_MENU_CATEGORIES_JSON = "native.menu.categories.json"
+    private const val PREF_NATIVE_MENU_ITEMS_JSON = "native.menu.items.json"
+    private const val PREF_NATIVE_STORE_JSON = "native.store.json"
+    private const val PREF_NATIVE_SETTINGS_JSON = "native.settings.json"
+    private const val PREF_NATIVE_PRINT_QUEUE_JSON = "native.print.queue.json"
+    private const val PREF_NATIVE_PENDING_ACTIONS_JSON = "native.pending.actions.json"
+    private const val PREF_NATIVE_SYNC_QUEUE_JSON = "native.sync.queue.json"
+    private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
+
+    private const val PRINT_JOB_PENDING = "pending"
+    private const val PRINT_JOB_RETRYING = "retrying"
+    private const val PRINT_JOB_PROCESSING = "processing"
+    private const val PRINT_JOB_SUCCEEDED = "succeeded"
+    private const val PRINT_JOB_DUPLICATE_PREVENTED = "duplicate_prevented"
+    private const val PRINT_JOB_DEAD_LETTER = "dead_letter"
+
+    internal const val ACTION_TYPE_PRINT = "PRINT"
+    internal const val ACTION_TYPE_CLOUD_SYNC = "CLOUD_SYNC"
+    internal const val ACTION_TYPE_ORDER_REPORT = "ORDER_REPORT"
+    internal const val ACTION_TYPE_SHIFT_REPORT = "SHIFT_REPORT"
+    internal const val ACTION_TYPE_DAY_CLOSE_REPORT = "DAY_CLOSE_REPORT"
+
+    private const val ACTION_STATUS_PENDING = "pending"
+    private const val ACTION_STATUS_RETRYING = "retrying"
+    private const val ACTION_STATUS_PROCESSING = "processing"
+    private const val ACTION_STATUS_SUCCEEDED = "succeeded"
+    private const val ACTION_STATUS_DEAD_LETTER = "dead_letter"
+
+    private const val SYNC_JOB_TYPE_MINI_BATCH = "orders_shift_mini_batch"
+    private const val SYNC_JOB_TYPE_FLUSH = "orders_shift_flush"
+  }
 
   fun seedIfNeeded() {
     val preferences = getPreferences()
@@ -34,7 +85,8 @@ class NativeConfigStore(private val context: Context) {
       PREF_NATIVE_MENU_CATEGORIES_JSON,
       PREF_NATIVE_MENU_ITEMS_JSON,
       PREF_NATIVE_PRINT_QUEUE_JSON,
-      PREF_NATIVE_PENDING_ACTIONS_JSON
+      PREF_NATIVE_PENDING_ACTIONS_JSON,
+      PREF_NATIVE_SYNC_QUEUE_JSON
     )
 
     operationalKeys.forEach { key ->
@@ -931,6 +983,7 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun createOrder(payload: JSONObject): JSONObject {
+    Log.i("NativeConfigStore", "createOrder called")
     val shiftId = payload.optString("shift_id", "")
     val staffId = payload.optString("staff_id", "")
     if (shiftId.isBlank() || staffId.isBlank()) {
@@ -990,6 +1043,7 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun payOrder(orderId: String, payload: JSONObject): JSONObject {
+    Log.i("NativeConfigStore", "payOrder called for orderId=$orderId")
     val current = readOrders()
     val now = System.currentTimeMillis()
     var updatedOrder: JSONObject? = null
@@ -1025,6 +1079,9 @@ class NativeConfigStore(private val context: Context) {
 
     persistOrders(updated)
     
+    // Cloud Sync trigger
+    checkAndTriggerMiniBatch(updatedOrder!!.optString("shift_id"))
+
     // Trigger Telegram report
     enqueuePendingAction(ACTION_TYPE_ORDER_REPORT, JSONObject()
       .put("order_id", orderId)
@@ -1034,7 +1091,39 @@ class NativeConfigStore(private val context: Context) {
     return updatedOrder
   }
 
+  private fun checkAndTriggerMiniBatch(shiftId: String) {
+    val cloudSettings = readCloudSyncSettings()
+    Log.d("NativeConfigStore", "Checking mini-batch trigger. Cloud settings: $cloudSettings")
+    
+    if (!cloudSettings.optBoolean("enabled", false)) {
+        Log.d("NativeConfigStore", "Mini-batch trigger skipped: Cloud sync disabled.")
+        return
+    }
+
+    val orders = readOrders()
+    var unsyncedCount = 0
+    for (i in 0 until orders.length()) {
+      val o = orders.optJSONObject(i) ?: continue
+      val oShiftId = o.optString("shift_id")
+      val hasSyncAt = o.has("cloud_sync_at")
+      val status = o.optString("status")
+      
+      if (oShiftId == shiftId && !hasSyncAt && (status == "completed" || status == "voided")) {
+        unsyncedCount++
+      }
+    }
+
+    val batchSize = cloudSettings.optInt("mini_batch_size", 20)
+    Log.i("NativeConfigStore", "Unsynced finalized orders for shift $shiftId: $unsyncedCount (Threshold: $batchSize)")
+    
+    if (unsyncedCount >= batchSize) {
+      Log.i("NativeConfigStore", "Threshold reached! Enqueuing mini-batch job.")
+      enqueueSyncJob(SYNC_JOB_TYPE_MINI_BATCH, shiftId)
+    }
+  }
+
   fun voidOrder(orderId: String, payload: JSONObject): JSONObject {
+    Log.i("NativeConfigStore", "voidOrder called for orderId=$orderId")
     val current = readOrders()
     val now = System.currentTimeMillis()
     var updatedOrder: JSONObject? = null
@@ -1066,6 +1155,9 @@ class NativeConfigStore(private val context: Context) {
 
     persistOrders(updated)
     
+    // Cloud Sync trigger
+    checkAndTriggerMiniBatch(updatedOrder!!.optString("shift_id"))
+
     // Trigger Telegram report
     enqueuePendingAction(ACTION_TYPE_ORDER_REPORT, JSONObject()
       .put("order_id", orderId)
@@ -1076,19 +1168,25 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun printReceipt(orderId: String, mode: String): JSONObject {
+    Log.i("NativeConfigStore", "printReceipt entered: orderId=$orderId, mode=$mode")
     val current = readOrders()
     val allowReprint = mode == "reprint"
 
     val target = findOrderById(current, orderId)
     if (target == null) {
+      Log.e("NativeConfigStore", "printReceipt failed: Order $orderId not found in ${current.length()} orders")
       throw IllegalArgumentException("Order not found: $orderId")
     }
 
+    Log.d("NativeConfigStore", "printReceipt: Found order $orderId with status=${target.optString("status")} and print_count=${target.optInt("print_count")}")
+
     if (target.optString("status") != "completed") {
+      Log.e("NativeConfigStore", "printReceipt failed: Order $orderId status is ${target.optString("status")}, not completed")
       throw IllegalStateException("Cannot print receipt for non-completed order")
     }
 
     if (!allowReprint && target.optInt("print_count", 0) > 0) {
+      Log.w("NativeConfigStore", "Preventing duplicate print in printReceipt for order: $orderId. Current print_count: ${target.optInt("print_count")}")
       return JSONObject(target.toString())
         .put("duplicate_print_prevented", true)
         .put("print_job", JSONObject.NULL)
@@ -1105,147 +1203,171 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun processPrintQueue(context: String = "manual", maxAttemptsPerRun: Int = 20): JSONObject {
-    val now = System.currentTimeMillis()
-    val queue = readPrintQueue()
-    val cappedAttempts = maxAttemptsPerRun.coerceIn(1, 500)
-    val updatedQueue = JSONArray()
+    if (!printLock.tryLock()) {
+      Log.i("NativeConfigStore", "processPrintQueue: Already running in another thread, skipping (context: $context)")
+      return JSONObject().put("status", "already_running")
+    }
+    
+    try {
+      val runId = (100..999).random()
+      Log.i("NativeConfigStore", "[$runId] processPrintQueue started. Context: $context")
+      val cappedAttempts = maxAttemptsPerRun.coerceIn(1, 500)
 
-    var processed = 0
-    var succeeded = 0
-    var retried = 0
-    var deadLettered = 0
+      var processed = 0
+      var succeeded = 0
+      var retried = 0
+      var deadLettered = 0
+      var duplicatePrevented = 0
 
-    for (index in 0 until queue.length()) {
-      val job = queue.optJSONObject(index) ?: continue
-      val status = job.optString("status")
-      val nextAttemptAt = job.optLong("next_attempt_at", 0L)
-      val eligible = status == PRINT_JOB_PENDING || status == PRINT_JOB_RETRYING
+      // We process jobs one by one, re-reading the queue each time to be thread-safe
+      // and ensure we don't overwrite new jobs enqueued during processing.
+      while (processed < cappedAttempts) {
+        val now = System.currentTimeMillis()
+        var jobToProcess: JSONObject? = null
 
-      if (!eligible || processed >= cappedAttempts || nextAttemptAt > now) {
-        updatedQueue.put(job)
-        continue
-      }
-
-      val processingJob = JSONObject(job.toString())
-        .put("status", PRINT_JOB_PROCESSING)
-        .put("updated_at", now)
-
-      // Immediate persistence of processing status to prevent race conditions
-      val currentQueue = readPrintQueue()
-      for (i in 0 until currentQueue.length()) {
-        val qj = currentQueue.optJSONObject(i) ?: continue
-        if (qj.optString("id") == processingJob.optString("id")) {
-          currentQueue.put(i, processingJob)
-          break
-        }
-      }
-      persistPrintQueue(currentQueue)
-
-      try {
-        val mode = processingJob.optString("mode", "initial")
-        val orderId = processingJob.optString("order_id")
-        val order = findOrderById(readOrders(), orderId)
-          ?: throw IllegalStateException("Order not found for print job: $orderId")
-
-        if (order.optString("status") != "completed" && order.optString("status") != "voided") {
-          throw IllegalStateException("Cannot print receipt for order status: ${order.optString("status")}")
-        }
-
-        if (mode == "initial" && order.optInt("print_count", 0) > 0) {
-          val duplicateJob = JSONObject(processingJob.toString())
-            .put("status", PRINT_JOB_DUPLICATE_PREVENTED)
-            .put("last_error", JSONObject.NULL)
-            .put("updated_at", now)
-          updatedQueue.put(duplicateJob)
-          succeeded += 1
-          processed += 1
-          continue
-        }
-
-        validatePrinterTarget(processingJob)
-        
-        // 1. Resolve Copy Count
-        val variant = if (order.optString("status") == "voided") "VOID" else "INTERNAL"
-        var copyCount = 1
-        val settings = readSettings()
-        for (i in 0 until settings.length()) {
-          val s = settings.optJSONObject(i) ?: continue
-          if (s.optString("key") == "receipt.copies") {
-            val v = s.optJSONObject("value")
-            if (v?.optInt("version") == 1) {
-              val copiesArr = v.optJSONArray("copies") ?: JSONArray()
-              for (j in 0 until copiesArr.length()) {
-                val c = copiesArr.optJSONObject(j) ?: continue
-                if (c.optString("variant") == variant) {
-                  copyCount = c.optInt("count", 1)
-                  break
-                }
-              }
+        synchronized(globalFileLock) {
+          val queue = readPrintQueue()
+          for (i in 0 until queue.length()) {
+            val job = queue.optJSONObject(i) ?: continue
+            val status = job.optString("status")
+            val nextAttemptAt = job.optLong("next_attempt_at", 0L)
+            
+            if ((status == PRINT_JOB_PENDING || status == PRINT_JOB_RETRYING) && nextAttemptAt <= now) {
+              jobToProcess = JSONObject(job.toString())
+              
+              // Mark as processing immediately and persist
+              jobToProcess!!.put("status", PRINT_JOB_PROCESSING).put("updated_at", now)
+              queue.put(i, jobToProcess)
+              persistPrintQueue(queue)
+              break
             }
-            break
           }
         }
 
-        // 2. Render ESC/POS Payload
-        val store = readStore()
-        val language = store.optString("language", "en")
-        val currency = store.optString("currency", "USD")
-        val payload = ReceiptRenderer.renderOrder(order, variant, language, currency)
-
-        // 3. Send to Printer (multiple times if copies > 1)
-        val host = processingJob.optString("host")
-        val port = processingJob.optInt("port", 9100)
-        
-        for (c in 0 until copyCount.coerceAtLeast(1)) {
-          PrinterTransport.sendRawBytes(host, port, payload)
+        if (jobToProcess == null) {
+          Log.d("NativeConfigStore", "[$runId] No more eligible jobs in queue.")
+          break 
         }
 
-        incrementOrderPrint(orderId, now)
+        val jobId = jobToProcess!!.optString("id")
+        Log.i("NativeConfigStore", "[$runId] Processing job: $jobId")
 
-        val successJob = JSONObject(processingJob.toString())
-          .put("status", PRINT_JOB_SUCCEEDED)
-          .put("last_error", JSONObject.NULL)
-          .put("updated_at", now)
-        updatedQueue.put(successJob)
-        succeeded += 1
-      } catch (error: Exception) {
-        val attempts = processingJob.optInt("attempt_count", 0) + 1
-        val maxAttempts = processingJob.optInt("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
-        val message = error.message ?: "Print job failed"
+        try {
+          val mode = jobToProcess!!.optString("mode", "initial")
+          val orderId = jobToProcess!!.optString("order_id")
+          val order = findOrderById(readOrders(), orderId)
+            ?: throw IllegalStateException("Order not found: $orderId")
 
-        if (attempts >= maxAttempts) {
-          val dead = JSONObject(processingJob.toString())
-            .put("status", PRINT_JOB_DEAD_LETTER)
-            .put("attempt_count", attempts)
-            .put("last_error", message)
-            .put("updated_at", now)
-          updatedQueue.put(dead)
-          deadLettered += 1
-        } else {
-          val backoffMs = computeBackoffMs(attempts)
-          val retry = JSONObject(processingJob.toString())
-            .put("status", PRINT_JOB_RETRYING)
-            .put("attempt_count", attempts)
-            .put("next_attempt_at", now + backoffMs)
-            .put("last_error", message)
-            .put("updated_at", now)
-          updatedQueue.put(retry)
-          retried += 1
+          if (order.optString("status") != "completed" && order.optString("status") != "voided") {
+            throw IllegalStateException("Invalid order status: ${order.optString("status")}")
+          }
+
+          if (mode == "initial" && order.optInt("print_count", 0) > 0) {
+            Log.w("NativeConfigStore", "[$runId] Skipping duplicate print for order $orderId")
+            finalizeJobStatus(jobId, PRINT_JOB_DUPLICATE_PREVENTED, null)
+            duplicatePrevented++
+          } else {
+            validatePrinterTarget(jobToProcess!!)
+            
+            val variant = if (order.optString("status") == "voided") "VOID" else "INTERNAL"
+            var copyCount = 1
+            val settings = readSettings()
+            for (i in 0 until settings.length()) {
+              val s = settings.optJSONObject(i) ?: continue
+              if (s.optString("key") == "receipt.copies") {
+                val v = s.optJSONObject("value")
+                if (v?.optInt("version") == 1) {
+                  val copiesArr = v.optJSONArray("copies") ?: JSONArray()
+                  for (j in 0 until copiesArr.length()) {
+                    val c = copiesArr.optJSONObject(j) ?: continue
+                    if (c.optString("variant") == variant) {
+                      copyCount = c.optInt("count", 1)
+                      break
+                    }
+                  }
+                }
+                break
+              }
+            }
+
+            val store = readStore()
+            val language = store.optString("language", "en")
+            val currency = store.optString("currency", "KHR")
+            val payload = ReceiptRenderer.renderOrder(order, variant, language, currency)
+
+            val host = jobToProcess!!.optString("host")
+            val port = jobToProcess!!.optInt("port", 9100)
+            
+            repeat(copyCount.coerceAtLeast(1)) {
+              PrinterTransport.sendRawBytes(host, port, payload)
+            }
+
+            incrementOrderPrint(orderId, now)
+            finalizeJobStatus(jobId, PRINT_JOB_SUCCEEDED, null)
+            succeeded++
+          }
+        } catch (error: Exception) {
+          val message = error.message ?: "Unknown error"
+          Log.e("NativeConfigStore", "[$runId] Job $jobId failed: $message")
+          
+          val attempts = jobToProcess!!.optInt("attempt_count", 0) + 1
+          val maxAttempts = jobToProcess!!.optInt("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+
+          if (attempts >= maxAttempts) {
+            finalizeJobStatus(jobId, PRINT_JOB_DEAD_LETTER, message, attempts)
+            deadLettered++
+          } else {
+            val backoffMs = computeBackoffMs(attempts)
+            finalizeJobStatus(jobId, PRINT_JOB_RETRYING, message, attempts, now + backoffMs)
+            retried++
+          }
         }
+        processed++
       }
 
-      processed += 1
+      return JSONObject()
+        .put("context", context)
+        .put("processed", processed)
+        .put("succeeded", succeeded)
+        .put("retried", retried)
+        .put("dead_lettered", deadLettered)
+        .put("duplicate_prevented", duplicatePrevented)
+        .put("summary", getPrintQueueStatus())
+    } finally {
+      printLock.unlock()
     }
+  }
 
-    persistPrintQueue(updatedQueue)
+  private fun finalizeJobStatus(
+    jobId: String, 
+    status: String, 
+    error: String?, 
+    attempts: Int? = null, 
+    nextAttemptAt: Long? = null
+  ) {
+    synchronized(globalFileLock) {
+      val queue = readPrintQueue()
+      val now = System.currentTimeMillis()
+      for (i in 0 until queue.length()) {
+        val job = queue.optJSONObject(i) ?: continue
+        if (job.optString("id") == jobId) {
+          val updated = JSONObject(job.toString())
+            .put("status", status)
+            .put("updated_at", now)
+          
+          if (error != null) updated.put("last_error", error)
+          if (attempts != null) updated.put("attempt_count", attempts)
+          if (nextAttemptAt != null) updated.put("next_attempt_at", nextAttemptAt)
+          else if (status == PRINT_JOB_SUCCEEDED || status == PRINT_JOB_DUPLICATE_PREVENTED) {
+             updated.put("next_attempt_at", 0L)
+          }
 
-    return JSONObject()
-      .put("context", context)
-      .put("processed", processed)
-      .put("succeeded", succeeded)
-      .put("retried", retried)
-      .put("dead_lettered", deadLettered)
-      .put("summary", getPrintQueueStatus())
+          queue.put(i, updated)
+          persistPrintQueue(queue)
+          return
+        }
+      }
+    }
   }
 
   fun getPrintQueueStatus(): JSONObject {
@@ -1288,57 +1410,65 @@ class NativeConfigStore(private val context: Context) {
   }
 
   private fun enqueuePrintJob(orderId: String, mode: String): JSONObject {
-    val now = System.currentTimeMillis()
-    val queue = readPrintQueue()
-    val settings = resolvePrinterNetworkSettings()
+    synchronized(globalFileLock) {
+        Log.i("NativeConfigStore", "enqueuePrintJob called: orderId=$orderId, mode=$mode")
+        val now = System.currentTimeMillis()
+        val queue = readPrintQueue()
+        val settings = resolvePrinterNetworkSettings()
 
-    val normalizedMode = if (mode == "reprint") "reprint" else "initial"
-    val jobId = if (normalizedMode == "initial") {
-      "print-initial-$orderId"
-    } else {
-      "print-reprint-$orderId-$now"
-    }
-
-    if (normalizedMode == "initial") {
-      for (index in 0 until queue.length()) {
-        val existing = queue.optJSONObject(index) ?: continue
-        if (existing.optString("id") == jobId) {
-          val status = existing.optString("status")
-          if (status == PRINT_JOB_SUCCEEDED || status == PRINT_JOB_DUPLICATE_PREVENTED) {
-            return existing
-          }
-
-          val reset = JSONObject(existing.toString())
-            .put("status", PRINT_JOB_PENDING)
-            .put("attempt_count", 0)
-            .put("next_attempt_at", now)
-            .put("last_error", JSONObject.NULL)
-            .put("updated_at", now)
-          queue.put(index, reset)
-          persistPrintQueue(queue)
-          return reset
+        val normalizedMode = if (mode == "reprint") "reprint" else "initial"
+        val jobId = if (normalizedMode == "initial") {
+          "print-initial-$orderId"
+        } else {
+          "print-reprint-$orderId-$now"
         }
-      }
+
+        if (normalizedMode == "initial") {
+          for (index in 0 until queue.length()) {
+            val existing = queue.optJSONObject(index) ?: continue
+            if (existing.optString("id") == jobId) {
+              val status = existing.optString("status")
+              Log.d("NativeConfigStore", "Found existing initial job for order $orderId with status: $status")
+              
+              if (status == PRINT_JOB_SUCCEEDED || status == PRINT_JOB_DUPLICATE_PREVENTED || status == PRINT_JOB_PROCESSING) {
+                Log.i("NativeConfigStore", "Skipping enqueue: Job already exists in state $status for order $orderId")
+                return existing
+              }
+
+              Log.i("NativeConfigStore", "Resetting existing failed/pending job to pending for order $orderId")
+              val reset = JSONObject(existing.toString())
+                .put("status", PRINT_JOB_PENDING)
+                .put("attempt_count", 0)
+                .put("next_attempt_at", now)
+                .put("last_error", JSONObject.NULL)
+                .put("updated_at", now)
+              queue.put(index, reset)
+              persistPrintQueue(queue)
+              return reset
+            }
+          }
+        }
+
+        val job = JSONObject()
+          .put("id", jobId)
+          .put("order_id", orderId)
+          .put("mode", normalizedMode)
+          .put("status", PRINT_JOB_PENDING)
+          .put("connection_method", settings.optString("connection_method", "lan"))
+          .put("host", settings.optString("host", ""))
+          .put("port", settings.optInt("port", 9100))
+          .put("attempt_count", 0)
+          .put("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+          .put("next_attempt_at", now)
+          .put("last_error", JSONObject.NULL)
+          .put("created_at", now)
+          .put("updated_at", now)
+
+        queue.put(job)
+        Log.i("NativeConfigStore", "enqueuePrintJob: Job enqueued. New queue size: ${queue.length()}. JobID: $jobId")
+        persistPrintQueue(queue)
+        return job
     }
-
-    val job = JSONObject()
-      .put("id", jobId)
-      .put("order_id", orderId)
-      .put("mode", normalizedMode)
-      .put("status", PRINT_JOB_PENDING)
-      .put("connection_method", settings.optString("connection_method", "lan"))
-      .put("host", settings.optString("host", ""))
-      .put("port", settings.optInt("port", 9100))
-      .put("attempt_count", 0)
-      .put("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
-      .put("next_attempt_at", now)
-      .put("last_error", JSONObject.NULL)
-      .put("created_at", now)
-      .put("updated_at", now)
-
-    queue.put(job)
-    persistPrintQueue(queue)
-    return job
   }
 
   private fun resolvePrinterNetworkSettings(): JSONObject {
@@ -1373,29 +1503,33 @@ class NativeConfigStore(private val context: Context) {
   }
 
   private fun incrementOrderPrint(orderId: String, now: Long) {
-    val current = readOrders()
-    val updated = JSONArray()
-    var found = false
+    synchronized(globalFileLock) {
+        Log.d("NativeConfigStore", "Incrementing print count for order: $orderId")
+        val current = readOrders()
+        val updated = JSONArray()
+        var found = false
 
-    for (index in 0 until current.length()) {
-      val order = current.optJSONObject(index) ?: continue
-      if (order.optString("id") == orderId) {
-        val merged = JSONObject(order.toString())
-          .put("last_printed_at", now)
-          .put("print_count", order.optInt("print_count", 0) + 1)
-          .put("duplicate_print_prevented", false)
-        updated.put(merged)
-        found = true
-      } else {
-        updated.put(order)
-      }
+        for (index in 0 until current.length()) {
+          val order = current.optJSONObject(index) ?: continue
+          if (order.optString("id") == orderId) {
+            val merged = JSONObject(order.toString())
+              .put("last_printed_at", now)
+              .put("print_count", order.optInt("print_count", 0) + 1)
+              .put("duplicate_print_prevented", false)
+            updated.put(merged)
+            found = true
+            Log.i("NativeConfigStore", "New print count for $orderId: ${merged.optInt("print_count")}")
+          } else {
+            updated.put(order)
+          }
+        }
+
+        if (!found) {
+          throw IllegalStateException("Order not found while updating print state: $orderId")
+        }
+
+        persistOrders(updated)
     }
-
-    if (!found) {
-      throw IllegalStateException("Order not found while updating print state: $orderId")
-    }
-
-    persistOrders(updated)
   }
 
   private fun findShiftById(shifts: JSONArray, shiftId: String): JSONObject? {
@@ -1587,6 +1721,10 @@ class NativeConfigStore(private val context: Context) {
 
     persistShifts(updated)
     
+    // Trigger Cloud Sync Flush
+    Log.i("NativeConfigStore", "Shift $shiftId closed. Enqueuing full cloud sync flush.")
+    enqueueSyncJob(SYNC_JOB_TYPE_FLUSH, shiftId)
+    
     // Enqueue background report action
     enqueuePendingAction(ACTION_TYPE_SHIFT_REPORT, JSONObject()
       .put("shift_id", shiftId)
@@ -1617,6 +1755,14 @@ class NativeConfigStore(private val context: Context) {
 
     persistShifts(updated)
 
+    // Cloud Sync trigger for all closed shifts
+    for (i in 0 until updated.length()) {
+        val s = updated.optJSONObject(i) ?: continue
+        if (s.optString("status") == "closed" && s.optLong("ended_at") == now) {
+            enqueueSyncJob(SYNC_JOB_TYPE_FLUSH, s.optString("id"))
+        }
+    }
+
     // Enqueue background report action
     val dateStr = LocalDate.now().toString()
     enqueuePendingAction(ACTION_TYPE_DAY_CLOSE_REPORT, JSONObject()
@@ -1636,14 +1782,267 @@ class NativeConfigStore(private val context: Context) {
     for (index in 0 until settings.length()) {
       val setting = settings.optJSONObject(index) ?: continue
       if (setting.optString("key") == "cloud.sync") {
-        return setting.optJSONObject("value") ?: JSONObject()
+        val config = setting.optJSONObject("value") ?: JSONObject()
+        Log.i("NativeConfigStore", "Read Cloud Sync Settings: $config")
+        return config
       }
     }
     return JSONObject()
   }
 
   fun updateCloudSyncSettings(payload: JSONObject): JSONObject {
-    return upsertSetting("cloud.sync", payload).optJSONObject("value") ?: JSONObject()
+    Log.i("NativeConfigStore", "Updating cloud sync settings: $payload")
+    // If the payload doesn't have a "value" key, it's likely just the inner config object.
+    // We should wrap it correctly for upsertSetting.
+    return if (payload.has("value")) {
+      upsertSetting("cloud.sync", payload).optJSONObject("value") ?: JSONObject()
+    } else {
+      val wrapper = JSONObject()
+        .put("value", payload)
+        .put("value_type", "json")
+        .put("category", "Cloud Sync")
+        .put("description", "Cloud ingestion configuration")
+      upsertSetting("cloud.sync", wrapper).optJSONObject("value") ?: JSONObject()
+    }
+  }
+
+  fun performCloudHandshake(tempSettings: JSONObject): JSONObject {
+    Log.i("NativeConfigStore", "Performing cloud handshake with: $tempSettings")
+    
+    // Support both direct and wrapped payloads
+    val config = if (tempSettings.has("value")) tempSettings.optJSONObject("value") ?: tempSettings else tempSettings
+    
+    val apiKey = config.optString("api_key").trim()
+    var baseUrl = config.optString("base_url").trim()
+
+    if (apiKey.isBlank() || baseUrl.isBlank()) {
+      Log.e("NativeConfigStore", "Handshake failed: API Key or Base URL is blank. API Key present: ${apiKey.isNotBlank()}, Base URL present: ${baseUrl.isNotBlank()}")
+      throw IllegalStateException("API Key and Base URL are required for handshake")
+    }
+
+    if (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.substring(0, baseUrl.length - 1)
+    }
+
+    val endpoint = "$baseUrl/pos/handshake"
+    var connection: java.net.HttpURLConnection? = null
+    try {
+      val url = java.net.URL(endpoint)
+      connection = url.openConnection() as java.net.HttpURLConnection
+      connection.requestMethod = "POST"
+      connection.doOutput = true
+      connection.connectTimeout = 15000
+      connection.readTimeout = 15000
+      connection.setRequestProperty("Content-Type", "application/json")
+      connection.setRequestProperty("X-Api-Key", apiKey)
+
+      java.io.OutputStreamWriter(connection.outputStream).use { it.write("{}") }
+
+      val responseCode = connection.responseCode
+      if (responseCode !in 200..299) {
+        val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "No error body"
+        throw Exception("Handshake failed ($responseCode): $errorBody")
+      }
+
+      val responseBody = connection.inputStream.bufferedReader().readText()
+      Log.d("NativeConfigStore", "Handshake response: $responseBody")
+      val responseJson = JSONObject(responseBody)
+      val data = responseJson.optJSONObject("data") ?: responseJson
+      val storeClient = data.optJSONObject("store_client") ?: data
+
+      // Try to find the canonical Store ID. 
+      // We prioritize:
+      // 1. data.store.id (Found in logs)
+      // 2. data.store_id (Spec)
+      // 3. data.store_client.id (Spec)
+      val storeObjId = data.optJSONObject("store")?.optString("id", "") ?: ""
+      val rootStoreId = data.optString("store_id", "")
+      val clientStoreId = storeClient.optString("id", "")
+      
+      val storeId = if (storeObjId.isNotBlank()) storeObjId 
+                    else if (rootStoreId.isNotBlank()) rootStoreId 
+                    else clientStoreId
+      
+      if (storeId.isBlank()) {
+        Log.e("NativeConfigStore", "Handshake failed: No store_id found in response. storeObjId: '$storeObjId', rootStoreId: '$rootStoreId', clientStoreId: '$clientStoreId'")
+        throw Exception("Handshake response missing store_id")
+      }
+
+      Log.i("NativeConfigStore", "Handshake successful! Resolved Store ID: $storeId (from obj: '$storeObjId', from root: '$rootStoreId', from client: '$clientStoreId')")
+
+      val updatedConfig = JSONObject(config.toString())
+        .put("store_id", storeId)
+        .put("store_linked_at", storeClient.opt("linked_at") ?: JSONObject.NULL)
+        .put("store_client_name", storeClient.opt("name") ?: JSONObject.NULL)
+        .put("store_last_seen_at", storeClient.opt("last_seen_at") ?: JSONObject.NULL)
+
+      updateCloudSyncSettings(updatedConfig)
+      
+      // Clear the sync queue on successful handshake to reset any backoff-delayed jobs
+      persistSyncQueue(JSONArray())
+
+      return updatedConfig
+    } finally {
+      connection?.disconnect()
+    }
+  }
+
+  fun readSyncQueue(): JSONArray = readArray(PREF_NATIVE_SYNC_QUEUE_JSON)
+
+  fun persistSyncQueue(queue: JSONArray) = persistArray(PREF_NATIVE_SYNC_QUEUE_JSON, queue)
+
+  fun enqueueSyncJob(type: String, shiftId: String): Boolean {
+    val queue = readSyncQueue()
+    for (i in 0 until queue.length()) {
+      val job = queue.optJSONObject(i) ?: continue
+      if (job.optString("type") == type && job.optString("shiftId") == shiftId) {
+        return false
+      }
+    }
+
+    val now = java.time.OffsetDateTime.now().toString()
+    val job = JSONObject()
+      .put("id", UUID.randomUUID().toString())
+      .put("type", type)
+      .put("shiftId", shiftId)
+      .put("created_at", now)
+      .put("last_attempt_at", JSONObject.NULL)
+      .put("retry_count", 0)
+      .put("next_attempt_at", now)
+
+    queue.put(job)
+    persistSyncQueue(queue)
+    
+    // Trigger worker
+    triggerCloudSyncWorker()
+    
+    return true
+  }
+
+  private fun triggerCloudSyncWorker() {
+    try {
+      val workManager = WorkManager.getInstance(context)
+      val syncRequest = OneTimeWorkRequestBuilder<CloudSyncWorker>()
+        .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+        .build()
+      workManager.enqueueUniqueWork("cloud-sync-immediate", ExistingWorkPolicy.REPLACE, syncRequest)
+    } catch (e: Exception) {
+      Log.w("NativeConfigStore", "Failed to trigger CloudSyncWorker: ${e.message}")
+    }
+  }
+
+  fun markOrderAsSynced(orderId: String) {
+    Log.d("NativeConfigStore", "Marking order $orderId as synced")
+    val current = readOrders()
+    val updated = JSONArray()
+    val now = System.currentTimeMillis()
+    var found = false
+
+    for (index in 0 until current.length()) {
+      val order = current.optJSONObject(index) ?: continue
+      if (order.optString("id") == orderId) {
+        order.put("cloud_sync_at", now)
+        found = true
+        Log.v("NativeConfigStore", "Updated cloud_sync_at for $orderId")
+      }
+      updated.put(order)
+    }
+
+    if (found) {
+      persistOrders(updated)
+      Log.i("NativeConfigStore", "Order $orderId persisted as synced.")
+    } else {
+      Log.w("NativeConfigStore", "Could not find order $orderId to mark as synced!")
+    }
+  }
+
+  fun getUnsyncedOrders(shiftId: String, limit: Int): List<JSONObject> {
+    val orders = readOrders()
+    val result = mutableListOf<JSONObject>()
+    Log.d("NativeConfigStore", "Searching for up to $limit unsynced orders in shift $shiftId. Total orders in store: ${orders.length()}")
+    
+    for (i in 0 until orders.length()) {
+      val o = orders.optJSONObject(i) ?: continue
+      val oShiftId = o.optString("shift_id")
+      val hasSyncAt = o.has("cloud_sync_at")
+      val status = o.optString("status")
+
+      if (oShiftId == shiftId && !hasSyncAt && (status == "completed" || status == "voided")) {
+        result.add(o)
+        if (result.size >= limit) break
+      }
+    }
+    Log.i("NativeConfigStore", "Found ${result.size} unsynced orders for shift $shiftId")
+    return result
+  }
+
+  fun createCloudEventBatch(shiftId: String, source: String): String {
+    val settings = readCloudSyncSettings()
+    val apiKey = settings.optString("api_key").trim()
+    val baseUrl = settings.optString("base_url").trim().removeSuffix("/")
+    val storeId = settings.optString("store_id").trim()
+    
+    val shift = findShiftById(readShifts(), shiftId) ?: throw Exception("Shift not found")
+    
+    val endpoint = "$baseUrl/stores/$storeId/event_batches"
+    val payload = JSONObject().put("event_batch", JSONObject()
+      .put("business_date", shift.optString("date"))
+      .put("source", source))
+      
+    val response = performCloudRequest("POST", endpoint, apiKey, payload.toString())
+    val data = response.optJSONObject("data") ?: response
+    val batchId = data.optJSONObject("event_batch")?.optString("id") ?: data.optString("id")
+    if (batchId.isNullOrBlank()) throw Exception("Batch creation failed: ID missing")
+    return batchId
+  }
+
+  fun uploadCloudEvent(batchId: String, event: JSONObject) {
+    val settings = readCloudSyncSettings()
+    val apiKey = settings.optString("api_key").trim()
+    val baseUrl = settings.optString("base_url").trim().removeSuffix("/")
+    val storeId = settings.optString("store_id").trim()
+    
+    val endpoint = "$baseUrl/stores/$storeId/event_batches/$batchId/events"
+    performCloudRequest("POST", endpoint, apiKey, event.toString())
+  }
+
+  private fun performCloudRequest(method: String, endpoint: String, apiKey: String, body: String): JSONObject {
+    Log.i("NativeConfigStore", "Cloud Request: $method $endpoint")
+    val maskedKey = if (apiKey.length > 8) apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length - 4) else "****"
+    Log.d("NativeConfigStore", "API Key: $maskedKey")
+    Log.d("NativeConfigStore", "Request Body: $body")
+    
+    var connection: java.net.HttpURLConnection? = null
+    try {
+      val url = java.net.URL(endpoint)
+      connection = url.openConnection() as java.net.HttpURLConnection
+      connection.requestMethod = method
+      connection.doOutput = true
+      connection.connectTimeout = 15000
+      connection.readTimeout = 15000
+      connection.setRequestProperty("Content-Type", "application/json")
+      connection.setRequestProperty("X-Api-Key", apiKey)
+
+      java.io.OutputStreamWriter(connection.outputStream).use { it.write(body) }
+
+      val responseCode = connection.responseCode
+      Log.i("NativeConfigStore", "Cloud Response Code: $responseCode")
+      
+      if (responseCode !in 200..299) {
+        val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "No error body"
+        Log.e("NativeConfigStore", "Cloud Request Failed ($responseCode): $errorBody")
+        throw Exception("Cloud request failed ($responseCode): $errorBody")
+      }
+
+      val responseBody = connection.inputStream.bufferedReader().readText()
+      Log.d("NativeConfigStore", "Cloud Response Body: $responseBody")
+      return JSONObject(responseBody)
+    } catch (e: Exception) {
+      Log.e("NativeConfigStore", "Cloud Request Exception: ${e.message}")
+      throw e
+    } finally {
+      connection?.disconnect()
+    }
   }
 
   fun updateStore(payload: JSONObject): JSONObject {
@@ -1671,6 +2070,7 @@ class NativeConfigStore(private val context: Context) {
         val payloadKeys = payload.keys()
         while (payloadKeys.hasNext()) {
           val k = payloadKeys.next()
+          // Special case: if we are updating "value", replace it instead of merging fields into root
           merged.put(k, payload.get(k))
         }
         updated.put(merged)
@@ -1738,6 +2138,8 @@ class NativeConfigStore(private val context: Context) {
   private fun getPreferences() =
     context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
+  fun getContext(): Context = context
+
   private fun readArray(key: String): JSONArray {
     val raw = getPreferences().getString(key, null) ?: return JSONArray()
     return try {
@@ -1801,15 +2203,15 @@ class NativeConfigStore(private val context: Context) {
     actions.put(action)
     persistPendingActions(actions)
 
-    // Trigger immediate background sweep
+    // Trigger immediate background sweep for ACTIONS
     try {
         val workManager = WorkManager.getInstance(context)
-        val fastSweep = OneTimeWorkRequestBuilder<PrintQueueWorker>()
+        val fastSweep = OneTimeWorkRequestBuilder<PrintQueueWorker>() 
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        workManager.enqueueUniqueWork("fast-sweep", ExistingWorkPolicy.REPLACE, fastSweep)
+        workManager.enqueueUniqueWork("pending-actions-fast-sweep", ExistingWorkPolicy.REPLACE, fastSweep)
     } catch (e: Exception) {
-        Log.w("NativeConfigStore", "Failed to trigger fast-sweep worker: ${e.message}")
+        Log.w("NativeConfigStore", "Failed to trigger pending-actions worker: ${e.message}")
     }
 
     return action
@@ -1868,10 +2270,7 @@ class NativeConfigStore(private val context: Context) {
 
         when (type) {
           ACTION_TYPE_CLOUD_SYNC -> {
-            // Placeholder for Cloud Sync logic
-            // In the future, this would call a repository to sync orders/shifts
             Log.d("PendingAction", "Processing Cloud Sync action: $payload")
-            // Simulate success for now
           }
           ACTION_TYPE_ORDER_REPORT -> {
             val orderId = payload.optString("order_id")
@@ -2114,50 +2513,6 @@ class NativeConfigStore(private val context: Context) {
     return JSONObject().put("success", found)
   }
 
-  private fun buildDefaultOrders(): JSONArray {
-    return JSONArray()
-      .put(JSONObject()
-        .put("id", "order-native-1")
-        .put("shift_id", "shift-native-open-1")
-        .put("staff_id", "staff-native-1")
-        .put("items", JSONArray().put(JSONObject()
-          .put("id", "order-item-native-1")
-          .put("menu_item_id", "item-americano")
-          .put("menu_item_name", "Americano")
-          .put("quantity", 1)
-          .put("unit_price", 250)
-          .put("customizations", JSONArray())
-          .put("toppings", JSONArray())
-          .put("subtotal", 250)
-        ))
-        .put("total", 250)
-        .put("total_amount", 250)
-        .put("total_items", 1)
-        .put("status", "completed")
-        .put("created_at", 1778637600000L)
-      )
-      .put(JSONObject()
-        .put("id", "order-native-2")
-        .put("shift_id", "shift-native-closed-1")
-        .put("staff_id", "staff-native-2")
-        .put("items", JSONArray().put(JSONObject()
-          .put("id", "order-item-native-2")
-          .put("menu_item_id", "item-latte")
-          .put("menu_item_name", "Latte")
-          .put("quantity", 2)
-          .put("unit_price", 320)
-          .put("customizations", JSONArray())
-          .put("toppings", JSONArray())
-          .put("subtotal", 640)
-        ))
-        .put("total", 640)
-        .put("total_amount", 640)
-        .put("total_items", 2)
-        .put("status", "completed")
-        .put("created_at", 1778551200000L)
-      )
-  }
-
   private fun buildDefaultStore(): JSONObject {
     return JSONObject()
       .put("id", "android-shell-store")
@@ -2232,6 +2587,7 @@ class NativeConfigStore(private val context: Context) {
           .put("enabled", false)
           .put("api_key", "")
           .put("base_url", "")
+          .put("mini_batch_size", 20)
           .put("store_id", JSONObject.NULL)
           .put("store_linked_at", JSONObject.NULL)
           .put("store_client_name", JSONObject.NULL)
@@ -2248,47 +2604,6 @@ class NativeConfigStore(private val context: Context) {
         category = "Integrations",
         description = "Telegram Bot API Token"
       ))
-  }
-
-  private fun buildDefaultMenuCategories(): JSONArray {
-    return JSONArray()
-      .put(JSONObject()
-        .put("id", "cat-coffee")
-        .put("name", "Coffee")
-        .put("image_url", JSONObject.NULL)
-        .put("sort_order", 10)
-      )
-      .put(JSONObject()
-        .put("id", "cat-tea")
-        .put("name", "Tea")
-        .put("image_url", JSONObject.NULL)
-        .put("sort_order", 20)
-      )
-  }
-
-  private fun buildDefaultMenuItems(): JSONArray {
-    return JSONArray()
-      .put(JSONObject()
-        .put("id", "item-americano")
-        .put("name", "Americano")
-        .put("price", 250)
-        .put("image_url", JSONObject.NULL)
-        .put("category_ids", JSONArray().put("cat-coffee"))
-      )
-      .put(JSONObject()
-        .put("id", "item-latte")
-        .put("name", "Latte")
-        .put("price", 320)
-        .put("image_url", JSONObject.NULL)
-        .put("category_ids", JSONArray().put("cat-coffee"))
-      )
-      .put(JSONObject()
-        .put("id", "item-green-tea")
-        .put("name", "Green Tea")
-        .put("price", 220)
-        .put("image_url", JSONObject.NULL)
-        .put("category_ids", JSONArray().put("cat-tea"))
-      )
   }
 
   private fun buildDefaultMenuItemCustomizationMappings(): JSONArray {
@@ -2444,26 +2759,6 @@ class NativeConfigStore(private val context: Context) {
       )
   }
 
-  private fun buildDefaultShifts(): JSONArray {
-    return JSONArray()
-      .put(JSONObject()
-        .put("id", "shift-native-open-1")
-        .put("staff_id", "staff-native-1")
-        .put("date", "2026-05-13")
-        .put("started_at", 1778634000000L)
-        .put("ended_at", JSONObject.NULL)
-        .put("status", "open")
-      )
-      .put(JSONObject()
-        .put("id", "shift-native-closed-1")
-        .put("staff_id", "staff-native-2")
-        .put("date", "2026-05-12")
-        .put("started_at", 1778547600000L)
-        .put("ended_at", 1778572800000L)
-        .put("status", "closed")
-      )
-  }
-
   private fun buildDefaultStaff(): JSONArray {
     return JSONArray()
       .put(JSONObject()
@@ -2495,48 +2790,5 @@ class NativeConfigStore(private val context: Context) {
       .put("value_type", valueType)
       .put("category", category)
       .put("description", description)
-  }
-
-  companion object {
-    private const val PREFERENCES_NAME = "speypos_shell"
-    private const val PREF_SYSTEM_INITIALIZED = "system.initialized"
-    private const val PREF_NATIVE_ORDERS_JSON = "native.orders.json"
-    private const val PREF_NATIVE_STAFF_JSON = "native.staff.json"
-    private const val PREF_NATIVE_SHIFTS_JSON = "native.shifts.json"
-    private const val PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON = "native.menu.item.category.mappings.json"
-    private const val PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON = "native.menu.item.customization.mappings.json"
-    private const val PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON = "native.menu.category.customization.mappings.json"
-    private const val PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON = "native.menu.item.topping.mappings.json"
-    private const val PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON = "native.menu.category.topping.mappings.json"
-    private const val PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON = "native.customization.groups.json"
-    private const val PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON = "native.customization.options.json"
-    private const val PREF_NATIVE_TOPPING_GROUPS_JSON = "native.topping.groups.json"
-    private const val PREF_NATIVE_TOPPING_OPTIONS_JSON = "native.topping.options.json"
-    private const val PREF_NATIVE_MENU_CATEGORIES_JSON = "native.menu.categories.json"
-    private const val PREF_NATIVE_MENU_ITEMS_JSON = "native.menu.items.json"
-    private const val PREF_NATIVE_STORE_JSON = "native.store.json"
-    private const val PREF_NATIVE_SETTINGS_JSON = "native.settings.json"
-    private const val PREF_NATIVE_PRINT_QUEUE_JSON = "native.print.queue.json"
-    private const val PREF_NATIVE_PENDING_ACTIONS_JSON = "native.pending.actions.json"
-    private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
-
-    private const val PRINT_JOB_PENDING = "pending"
-    private const val PRINT_JOB_RETRYING = "retrying"
-    private const val PRINT_JOB_PROCESSING = "processing"
-    private const val PRINT_JOB_SUCCEEDED = "succeeded"
-    private const val PRINT_JOB_DUPLICATE_PREVENTED = "duplicate_prevented"
-    private const val PRINT_JOB_DEAD_LETTER = "dead_letter"
-
-    internal const val ACTION_TYPE_PRINT = "PRINT"
-    internal const val ACTION_TYPE_CLOUD_SYNC = "CLOUD_SYNC"
-    internal const val ACTION_TYPE_ORDER_REPORT = "ORDER_REPORT"
-    internal const val ACTION_TYPE_SHIFT_REPORT = "SHIFT_REPORT"
-    internal const val ACTION_TYPE_DAY_CLOSE_REPORT = "DAY_CLOSE_REPORT"
-
-    private const val ACTION_STATUS_PENDING = "pending"
-    private const val ACTION_STATUS_RETRYING = "retrying"
-    private const val ACTION_STATUS_PROCESSING = "processing"
-    private const val ACTION_STATUS_SUCCEEDED = "succeeded"
-    private const val ACTION_STATUS_DEAD_LETTER = "dead_letter"
   }
 }

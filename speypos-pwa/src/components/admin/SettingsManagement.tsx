@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { healthApi } from '@/lib/api';
+import { callNativeBridge } from '@/lib/compatibility/nativeBridge';
 import { getSystemCompatibilityProvider } from '@/lib/compatibility/system';
 import { getSettingsCompatibilityProvider } from '@/lib/compatibility/settings';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -21,11 +22,13 @@ const settingsCompatibility = getSettingsCompatibilityProvider();
 // Available receipt variants (extensible for future variants)
 const RECEIPT_VARIANTS = [
   { code: 'INTERNAL', labelKey: 'admin.settings.receiptInternal' },
+  { code: 'VOID', labelKey: 'admin.settings.receiptVoid' },
 ];
 
 // Default receipt copies configuration
 const DEFAULT_RECEIPT_COPIES: ReceiptCopyConfig[] = [
-  { variant: 'INTERNAL', count: 1 }
+  { variant: 'INTERNAL', count: 1 },
+  { variant: 'VOID', count: 1 }
 ];
 
 // Intent display labels and descriptions
@@ -53,7 +56,12 @@ export function SettingsManagement() {
   const [receiptCopies, setReceiptCopies] = useState<ReceiptCopyConfig[]>(DEFAULT_RECEIPT_COPIES);
 
   // Cloud Sync state
-  const [cloudSync, setCloudSync] = useState({ enabled: false, api_key: '', base_url: '' });
+  const [cloudSync, setCloudSync] = useState({
+    enabled: false,
+    api_key: '',
+    base_url: '',
+    mini_batch_size: 20
+  });
   const [cloudSyncErrors, setCloudSyncErrors] = useState<Record<string, string>>({});
 
   // Printer LAN state
@@ -163,6 +171,7 @@ export function SettingsManagement() {
             enabled: cloudSyncSetting.value.enabled ?? false,
             api_key: cloudSyncSetting.value.api_key ?? '',
             base_url: cloudSyncSetting.value.base_url ?? '',
+            mini_batch_size: cloudSyncSetting.value.mini_batch_size ?? 20,
           });
         }
 
@@ -266,6 +275,42 @@ export function SettingsManagement() {
     }
     setSavingCloudSync(true);
     try {
+      // Perform handshake if enabling or if config changed
+      if (cloudSync.enabled && settingsCompatibility.provider === 'native') {
+        const handshake = await callNativeBridge<any>('performCloudHandshake', JSON.stringify({
+          version: 1,
+          ...cloudSync
+        }));
+        if (handshake.error) {
+          toast({ title: t('toast.error'), description: `Cloud Handshake failed: ${handshake.error}`, variant: 'destructive' });
+          setSavingCloudSync(false);
+          return;
+        }
+
+        // Update local state with resolved store_id and metadata before saving
+        if (handshake.data) {
+          setCloudSync(prev => ({
+            ...prev,
+            ...handshake.data
+          }));
+
+          // Use the refreshed data for the subsequent upsert
+          const { error } = await settingsCompatibility.upsertSetting('cloud.sync', {
+            value: { version: 1, ...handshake.data },
+            value_type: 'json',
+            category: 'Integrations',
+            description: 'Cloud sync configuration',
+          });
+          if (!error) {
+            await refetchSettings();
+            toast({ title: t('admin.settings.saved'), description: t('admin.settings.cloudSyncUpdated') });
+            setNeedsReboot(true);
+          }
+          setSavingCloudSync(false);
+          return;
+        }
+      }
+
       const { error } = await settingsCompatibility.upsertSetting('cloud.sync', {
         value: { version: 1, ...cloudSync },
         value_type: 'json',
@@ -277,6 +322,8 @@ export function SettingsManagement() {
         toast({ title: t('admin.settings.saved'), description: t('admin.settings.cloudSyncUpdated') });
         setNeedsReboot(true);
       }
+    } catch (err) {
+      toast({ title: t('toast.error'), description: 'Failed to save cloud settings', variant: 'destructive' });
     } finally {
       setSavingCloudSync(false);
     }
@@ -373,6 +420,11 @@ export function SettingsManagement() {
               <div className="space-y-3">
                 <Input value={cloudSync.base_url} onChange={(e) => setCloudSync(prev => ({ ...prev, base_url: e.target.value }))} placeholder="Base URL" />
                 <Input type="password" value={cloudSync.api_key} onChange={(e) => setCloudSync(prev => ({ ...prev, api_key: e.target.value }))} placeholder="API Key" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Mini Batch Size</Label>
+                  <Input type="number" min="1" max="200" value={cloudSync.mini_batch_size} onChange={(e) => setCloudSync(prev => ({ ...prev, mini_batch_size: parseInt(e.target.value) || 20 }))} />
+                  <p className="text-[10px] text-muted-foreground">Background sync will trigger once this number of orders is reached.</p>
+                </div>
               </div>
             )}
           </CardContent>

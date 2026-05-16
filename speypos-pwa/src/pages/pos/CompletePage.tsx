@@ -78,15 +78,20 @@ export default function CompletePage() {
   };
 
   const handlePrintReceipt = async () => {
+    console.log('handlePrintReceipt triggered', { orderId, isPrinting });
     if (orderId) {
       try {
         setIsPrinting(true);
-        await orderCompatibility.printReceipt(orderId, 'reprint');
+        console.log('Calling bridge.printReceipt for order:', orderId);
+        const result = await orderCompatibility.printReceipt(orderId, 'reprint');
+        console.log('bridge.printReceipt result:', result);
       } catch (error) {
-        console.log('Error printing receipt:', error);
+        console.error('Error printing receipt:', error);
       } finally {
         setIsPrinting(false);
       }
+    } else {
+      console.warn('handlePrintReceipt: No orderId available to print');
     }
   };
 

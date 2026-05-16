@@ -52,10 +52,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { syncApi } from "@/lib/api";
 import { getOrderCompatibilityProvider } from "@/lib/compatibility/order";
 import { getStaffCompatibilityProvider } from "@/lib/compatibility/staff";
 import { getShiftCompatibilityProvider } from "@/lib/compatibility/shift";
+import { getSyncCompatibilityProvider } from "@/lib/compatibility/sync";
 import { useCurrency } from "@/lib/currency";
 import { useTranslation } from "@/lib/i18n";
 import { useDateTime } from "@/lib/datetime";
@@ -66,6 +66,7 @@ import type { Shift, Staff, Order, OrderItem } from "@/types/pos";
 const shiftCompatibility = getShiftCompatibilityProvider();
 const staffCompatibility = getStaffCompatibilityProvider();
 const orderCompatibility = getOrderCompatibilityProvider();
+const syncCompatibility = getSyncCompatibilityProvider();
 
 export function OrderHistoryManagement() {
   // State
@@ -202,7 +203,7 @@ export function OrderHistoryManagement() {
   const handleSyncOrders = async () => {
     if (!selectedShiftId) return;
     setSyncing(true);
-    const { error } = await syncApi.syncOrders(selectedShiftId);
+    const { error } = await syncCompatibility.syncOrders(selectedShiftId);
     if (error) {
       toast({ title: t('toast.error'), description: t('admin.orderHistory.syncFailed'), variant: 'destructive' });
     } else {

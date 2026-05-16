@@ -60,6 +60,10 @@ export interface SpeyposNativeBridge {
   getPendingActions(): string;
   getAllSettings(): string;
   upsertSetting(key: string, payloadJson: string): string;
+  getCloudSyncSettings(): string;
+  updateCloudSyncSettings(payloadJson: string): string;
+  performCloudHandshake(payloadJson: string): string;
+  syncOrders(shiftId: string): string;
   getStore(): string;
   updateStore(payloadJson: string): string;
   initialize(payloadJson: string): string;

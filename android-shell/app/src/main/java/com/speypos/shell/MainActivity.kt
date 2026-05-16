@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     
     configStore.seedIfNeeded()
     schedulePrintQueueWorkers()
+    scheduleCloudSyncWorkers()
 
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -242,16 +243,8 @@ class MainActivity : AppCompatActivity() {
   }
 
   private fun buildFrontendUrl(): String {
-    val cloudSync = configStore.readCloudSyncSettings()
-    val isCloudEnabled = cloudSync.optBoolean("enabled", false)
-    val cloudBaseUrl = cloudSync.optString("base_url", "")
-
-    val apiProvider = if (isCloudEnabled && cloudBaseUrl.isNotBlank()) "cloud" else "native"
-    val apiBaseUrl = if (isCloudEnabled && cloudBaseUrl.isNotBlank()) {
-      cloudBaseUrl
-    } else {
-      "https://$VIRTUAL_DOMAIN/api"
-    }
+    val apiProvider = "native"
+    val apiBaseUrl = "https://$VIRTUAL_DOMAIN/api"
 
     val backendUrl = Uri.encode("https://$VIRTUAL_DOMAIN")
     val encodedApiBaseUrl = Uri.encode(apiBaseUrl)
@@ -286,6 +279,34 @@ class MainActivity : AppCompatActivity() {
     )
   }
 
+  private fun scheduleCloudSyncWorkers() {
+    val workManager = WorkManager.getInstance(applicationContext)
+    val constraints = Constraints.Builder()
+      .setRequiredNetworkType(NetworkType.CONNECTED)
+      .build()
+
+    val periodic = PeriodicWorkRequestBuilder<CloudSyncWorker>(15, TimeUnit.MINUTES)
+      .setConstraints(constraints)
+      .build()
+
+    workManager.enqueueUniquePeriodicWork(
+      CLOUD_SYNC_PERIODIC_WORK_NAME,
+      ExistingPeriodicWorkPolicy.UPDATE,
+      periodic
+    )
+
+    val startupSweep = OneTimeWorkRequestBuilder<CloudSyncWorker>()
+      .setInitialDelay(5, TimeUnit.SECONDS)
+      .setConstraints(constraints)
+      .build()
+
+    workManager.enqueueUniqueWork(
+      CLOUD_SYNC_STARTUP_WORK_NAME,
+      ExistingWorkPolicy.REPLACE,
+      startupSweep
+    )
+  }
+
   private fun showError(message: String) {
     binding.errorMessage.text = message
     binding.webView.visibility = View.GONE
@@ -301,5 +322,7 @@ class MainActivity : AppCompatActivity() {
     private const val VIRTUAL_DOMAIN = "app.speypos.local"
     private const val PRINT_QUEUE_PERIODIC_WORK_NAME = "speypos-print-queue-periodic"
     private const val PRINT_QUEUE_STARTUP_WORK_NAME = "speypos-print-queue-startup"
+    private const val CLOUD_SYNC_PERIODIC_WORK_NAME = "speypos-cloud-sync-periodic"
+    private const val CLOUD_SYNC_STARTUP_WORK_NAME = "speypos-cloud-sync-startup"
   }
 }

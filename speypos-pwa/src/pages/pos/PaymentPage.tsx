@@ -200,7 +200,7 @@ export default function PaymentPage() {
 
       await updateToCompleted();
 
-      navigate(`/pos/complete?shiftId=${shiftId}`, {
+      navigate(`/pos/complete?shiftId=${shiftId}&orderId=${createResult.data.id}`, {
         state: {
           total: orderTotal,
           received: paymentType === 'cash' ? receivedAmountCents : orderTotal,
@@ -234,7 +234,7 @@ export default function PaymentPage() {
     setVoiding(false);
     setVoidDialogOpen(false);
 
-    navigate(`/pos/complete?shiftId=${shiftId}`, {
+    navigate(`/pos/complete?shiftId=${shiftId}&orderId=${createResult.data?.id}`, {
       state: {
         total: orderTotal,
         received: 0,

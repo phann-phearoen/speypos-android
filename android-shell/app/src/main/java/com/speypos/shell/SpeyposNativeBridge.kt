@@ -9,6 +9,9 @@ class SpeyposNativeBridge(
   private val configStore: NativeConfigStore,
   private val runtimeState: NativeRuntimeState,
 ) {
+  init {
+    android.util.Log.i("SpeyposNativeBridge", "Native Bridge initialized")
+  }
   @JavascriptInterface
   fun initialize(payloadJson: String): String {
     return try {
@@ -753,6 +756,53 @@ class SpeyposNativeBridge(
         .put("data", JSONObject.NULL)
         .put("error", error.message ?: "Failed to update cloud sync settings")
         .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun performCloudHandshake(payloadJson: String): String {
+    android.util.Log.i("SpeyposNativeBridge", "Handshake requested with payload: $payloadJson")
+    return try {
+      JSONObject()
+        .put("data", configStore.performCloudHandshake(JSONObject(payloadJson)))
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      android.util.Log.e("SpeyposNativeBridge", "Handshake bridge error: ${error.message}")
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Cloud handshake failed")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun syncOrders(shiftId: String): String {
+    android.util.Log.i("SpeyposNativeBridge", "Manual sync requested for shift: $shiftId")
+    return try {
+      val enqueued = configStore.enqueueSyncJob("orders_shift_flush", shiftId)
+      JSONObject()
+        .put("data", JSONObject().put("enqueued", enqueued))
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Failed to enqueue sync job")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun debugCloudSyncSettings(): String {
+    return try {
+      val settings = configStore.readCloudSyncSettings()
+      JSONObject()
+        .put("data", settings)
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (e: Exception) {
+      JSONObject().put("data", JSONObject.NULL).put("error", e.message).toString()
     }
   }
 

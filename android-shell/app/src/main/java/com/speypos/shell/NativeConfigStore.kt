@@ -2143,37 +2143,16 @@ class NativeConfigStore(private val context: Context) {
   fun getContext(): Context = context
 
   private fun readArray(key: String): JSONArray {
-    val start = System.currentTimeMillis()
-    val raw = getPreferences().getString(key, null)
-    val readTime = System.currentTimeMillis() - start
-    
-    if (raw == null) return JSONArray()
-    
+    val raw = getPreferences().getString(key, null) ?: return JSONArray()
     return try {
-      val result = JSONArray(raw)
-      val totalTime = System.currentTimeMillis() - start
-      if (totalTime > 50) {
-          Log.w("SpeyposPerf", "SLOW readArray key: $key, total: ${totalTime}ms (read: ${readTime}ms, size: ${raw.length})")
-      }
-      result
+      JSONArray(raw)
     } catch (_: Exception) {
       JSONArray()
     }
   }
 
   private fun persistArray(key: String, data: JSONArray) {
-    val start = System.currentTimeMillis()
-    val stringData = data.toString()
-    val toStringTime = System.currentTimeMillis() - start
-    
-    val editStart = System.currentTimeMillis()
-    getPreferences().edit().putString(key, stringData).apply()
-    val applyTime = System.currentTimeMillis() - editStart
-    
-    val totalTime = System.currentTimeMillis() - start
-    if (totalTime > 100) {
-        Log.w("SpeyposPerf", "SLOW persistArray key: $key, total: ${totalTime}ms (json: ${toStringTime}ms, apply: ${applyTime}ms, size: ${stringData.length})")
-    }
+    getPreferences().edit().putString(key, data.toString()).apply()
   }
 
   private fun persistShifts(shifts: JSONArray) {
@@ -2185,9 +2164,7 @@ class NativeConfigStore(private val context: Context) {
   }
 
   private fun persistOrders(orders: JSONArray) {
-    val start = System.currentTimeMillis()
     persistArray(PREF_NATIVE_ORDERS_JSON, orders)
-    Log.d("SpeyposPerf", "persistOrders count: ${orders.length()}, time: ${System.currentTimeMillis() - start}ms")
   }
 
   private fun persistPrintQueue(queue: JSONArray) {

@@ -163,15 +163,10 @@ export default function PaymentPage() {
 
   const handleConfirmPayment = async () => {
     if (paymentType === 'cash' && !canComplete) return;
-    console.log('handleConfirmPayment started');
-    const start = performance.now();
     setProcessing(true);
 
     try {
-      console.log('Creating order...');
-      const createStart = performance.now();
       const createResult = await orderCompatibility.createOrder(buildOrderPayload());
-      console.log(`Order created in ${(performance.now() - createStart).toFixed(2)}ms`, createResult.data?.id);
 
       if (createResult.data?.id) {
         const paymentPayload = paymentType === 'cash'
@@ -186,11 +181,7 @@ export default function PaymentPage() {
               amount: orderTotal,
             };
 
-        console.log('Processing payment...');
-        const payStart = performance.now();
         const payResult = await orderCompatibility.payOrder(createResult.data.id, paymentPayload);
-        console.log(`Payment processed in ${(performance.now() - payStart).toFixed(2)}ms`);
-
         if (payResult.error || !payResult.data) {
           toast({
             title: 'Payment Failed',
@@ -199,11 +190,7 @@ export default function PaymentPage() {
           return;
         }
 
-        console.log('Triggering background print...');
-        const printStart = performance.now();
         const printResult = await orderCompatibility.printReceipt(createResult.data.id, 'initial');
-        console.log(`Background print trigger in ${(performance.now() - printStart).toFixed(2)}ms`);
-
         if (printResult.error) {
           toast({
             title: 'Print Pending',
@@ -217,12 +204,8 @@ export default function PaymentPage() {
         });
       }
 
-      console.log('Updating display session to completed...');
-      const displayStart = performance.now();
       await updateToCompleted();
-      console.log(`Display session updated in ${(performance.now() - displayStart).toFixed(2)}ms`);
 
-      console.log(`Total payment flow took ${(performance.now() - start).toFixed(2)}ms. Navigating to complete...`);
       navigate(`/pos/complete?shiftId=${shiftId}&orderId=${createResult.data.id}`, {
         state: {
           total: orderTotal,

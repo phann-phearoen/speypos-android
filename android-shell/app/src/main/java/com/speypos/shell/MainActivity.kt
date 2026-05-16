@@ -211,7 +211,6 @@ class MainActivity : AppCompatActivity() {
       path == "/api/runtime/status" -> nativeBridge.getRuntimeStatus()
       path == "/api/runtime/pending-actions" -> nativeBridge.getPendingActions()
       path == "/api/display/session" -> {
-        Log.d("SpeyposPerf", "Display session update received (ignored)")
         "{\"data\":null}" 
       }
       path == "/api/print-queue/retry" -> nativeBridge.triggerPrintQueueRetry()

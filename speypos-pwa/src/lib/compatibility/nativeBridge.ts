@@ -79,13 +79,8 @@ type NativeBridgeMethodName = keyof SpeyposNativeBridge;
 type NativeBridgeMethodArgs<K extends NativeBridgeMethodName> = Parameters<SpeyposNativeBridge[K]>;
 
 function parseBridgePayload<T>(payload: string, methodName: string): CompatibilityResult<T> {
-  const start = performance.now();
   try {
     const parsed = JSON.parse(payload) as CompatibilityResult<T>;
-    const parseTime = performance.now() - start;
-    if (parseTime > 50) {
-        console.warn(`SLOW Bridge Parse [${methodName}]: ${parseTime.toFixed(2)}ms, size: ${payload.length}`);
-    }
     return {
       data: parsed.data ?? null,
       error: parsed.error ?? null,
@@ -102,7 +97,6 @@ export function callNativeBridge<T, K extends NativeBridgeMethodName>(
   methodName: K,
   ...args: NativeBridgeMethodArgs<K>
 ): CompatibilityResult<T> {
-  const start = performance.now();
   if (typeof window === 'undefined' || !window.SpeyposNativeBridge) {
     return {
       data: null,
@@ -121,16 +115,7 @@ export function callNativeBridge<T, K extends NativeBridgeMethodName>(
     }
     // IMPORTANT: Bridge methods must be called on the bridge object to maintain context
     const result = (bridge[methodName] as any)(...args);
-    const bridgeCallTime = performance.now() - start;
-
-    const parsed = parseBridgePayload<T>(result, String(methodName));
-
-    const totalTime = performance.now() - start;
-    if (totalTime > 100) {
-        console.warn(`SLOW Bridge Call [${methodName}]: ${totalTime.toFixed(2)}ms (bridge: ${bridgeCallTime.toFixed(2)}ms)`);
-    }
-
-    return parsed;
+    return parseBridgePayload<T>(result, String(methodName));
   } catch (error) {
     return {
       data: null,

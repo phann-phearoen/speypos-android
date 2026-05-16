@@ -39,12 +39,7 @@ const httpOrderCompatibilityProvider: OrderCompatibilityProvider = {
 const nativeOrderCompatibilityProvider: OrderCompatibilityProvider = {
   provider: 'native',
   getOrders: async () => {
-    const start = performance.now();
     const result = await callNativeBridge<Order[]>('getOrders', 50);
-    const totalTime = performance.now() - start;
-    if (totalTime > 100) {
-        console.warn(`SLOW getOrders wrapper: ${totalTime.toFixed(2)}ms`);
-    }
     if (!result.error) {
       return result;
     }

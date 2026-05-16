@@ -37,10 +37,6 @@ export default function OrderPage() {
 
   const { isConnected } = useConnectionStatus();
   const { categories, menuItems, customizationMappings, categoryCustomizationMappings, toppingMappings, categoryToppingMappings, isLoading: menuLoading, refresh: refreshMenu } = useMenu();
-
-  useEffect(() => {
-    console.log('OrderPage mounted. Menu Loading:', menuLoading);
-  }, [menuLoading]);
   const { currentShift, currentStaff, closeShift, isLoading: shiftLoading } = useShift();
   const { refresh: refreshPendingActions } = usePendingActions();
   const { updateToOrdering, updateToIdle } = useDisplaySession();

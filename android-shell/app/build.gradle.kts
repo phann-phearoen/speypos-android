@@ -65,6 +65,9 @@ val syncWebAssets = tasks.register<Copy>("syncWebAssets") {
   dependsOn(buildFrontendForAndroid)
   from(frontendDistDir)
   into(assetsDir)
+  
+  // Force copy every time to ensure fresh assets
+  outputs.upToDateWhen { false }
 }
 
 val syncLauncherIcons = tasks.register("syncLauncherIcons") {

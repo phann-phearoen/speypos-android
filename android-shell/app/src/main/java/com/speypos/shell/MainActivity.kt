@@ -145,6 +145,7 @@ class MainActivity : AppCompatActivity() {
       mediaPlaybackRequiresUserGesture = false
       cacheMode = WebSettings.LOAD_DEFAULT
       mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+      setSupportMultipleWindows(false)
     }
 
     webView.webChromeClient = object : android.webkit.WebChromeClient() {
@@ -231,10 +232,14 @@ class MainActivity : AppCompatActivity() {
         error: WebResourceError?
       ) {
         val description = error?.description ?: "Unknown Error"
-        DiagnosticsManager.addBreadcrumb("Page Error: $description for ${request?.url}")
+        val errorCode = error?.errorCode ?: 0
+        val url = request?.url?.toString() ?: "unknown"
+        Log.e("SpeyposWebView", "WebView Error: $description (code: $errorCode) for $url")
+        DiagnosticsManager.addBreadcrumb("Page Error: $description ($errorCode) for $url")
+        
         if (request?.isForMainFrame == true) {
           runtimeState.startupPhase = "frontend_error"
-          showError("Unable to load the POS shell. Check the packaged frontend assets and try again.")
+          showError("Unable to load the POS shell: $description")
         }
       }
     }

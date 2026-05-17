@@ -980,8 +980,17 @@ export function t(key: string, lang: string = 'en'): string {
  * Hook for translations using the current language from settings
  */
 export function useTranslation() {
-  const { getLanguage } = useSettings();
-  const language = getLanguage();
+  let language = 'en';
+
+  try {
+    const settings = useSettings();
+    if (settings) {
+      language = settings.getLanguage();
+    }
+  } catch (e) {
+    // Fallback to default if settings context is not available yet
+    // This happens during initial setup or before SettingsProvider is fully mounted
+  }
 
   return {
     t: (key: string) => t(key, language),

@@ -90,8 +90,8 @@ const AppContent = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <SetupProvider>
-      <SettingsProvider>
+    <SettingsProvider>
+      <SetupProvider>
         <AuthProvider>
           <PendingActionsProvider>
             <TooltipProvider>
@@ -101,8 +101,8 @@ const App = () => (
             </TooltipProvider>
           </PendingActionsProvider>
         </AuthProvider>
-      </SettingsProvider>
-    </SetupProvider>
+      </SetupProvider>
+    </SettingsProvider>
   </QueryClientProvider>
 );
 

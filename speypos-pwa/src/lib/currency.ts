@@ -157,8 +157,17 @@ export function generateQuickAmounts(
  * Mirrors backend MoneyService API
  */
 export function useCurrency() {
-  const { getCurrency } = useSettings();
-  const currency = getCurrency();
+  let currency = 'USD';
+
+  try {
+    const settings = useSettings();
+    if (settings) {
+      currency = settings.getCurrency();
+    }
+  } catch (e) {
+    // Fallback if context is missing
+  }
+
   const metadata = getCurrencyMetadata(currency);
 
   return {

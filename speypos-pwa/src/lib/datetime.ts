@@ -164,9 +164,18 @@ export function formatTimeRange(
  * Mirrors the useCurrency pattern
  */
 export function useDateTime() {
-  const { getTimezone, getLanguage } = useSettings();
-  const timezone = getTimezone();
-  const language = getLanguage();
+  let timezone = DEFAULT_TIMEZONE;
+  let language = 'en';
+
+  try {
+    const settings = useSettings();
+    if (settings) {
+      timezone = settings.getTimezone();
+      language = settings.getLanguage();
+    }
+  } catch (e) {
+    // Fallback if context is missing
+  }
 
   return {
     // Core formatters

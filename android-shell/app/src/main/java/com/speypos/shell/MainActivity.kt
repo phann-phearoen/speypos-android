@@ -61,7 +61,7 @@ class MainActivity : AppCompatActivity() {
   private val assetLoader by lazy {
     WebViewAssetLoader.Builder()
       .setDomain(VIRTUAL_DOMAIN)
-      .addPathHandler("/web/", AssetsPathHandler(this))
+      .addPathHandler("/web/", AssetsPathHandler(applicationContext))
       .build()
   }
 
@@ -78,14 +78,23 @@ class MainActivity : AppCompatActivity() {
     binding = ActivityMainBinding.inflate(layoutInflater)
     setContentView(binding.root)
     
+    Log.d("SpeyposAssets", "Checking index.html access...")
+    try {
+      val stream = applicationContext.assets.open("web/index.html")
+      Log.d("SpeyposAssets", "index.html opened successfully. Size: ${stream.available()}")
+      stream.close()
+    } catch (e: Exception) {
+      Log.e("SpeyposAssets", "CRITICAL: Could not open index.html from assets!", e)
+    }
+
     configStore.seedIfNeeded()
     schedulePrintQueueWorkers()
     scheduleCloudSyncWorkers()
     
-    // Check for updates on startup
-    lifecycleScope.launch {
-      updateManager.checkForUpdates()
-    }
+    // Check for updates on startup (Disabled temporarily for debugging shell load)
+    // lifecycleScope.launch {
+    //   updateManager.checkForUpdates()
+    // }
 
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -146,6 +155,10 @@ class MainActivity : AppCompatActivity() {
       cacheMode = WebSettings.LOAD_DEFAULT
       mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
       setSupportMultipleWindows(false)
+      allowFileAccessFromFileURLs = true
+      allowUniversalAccessFromFileURLs = true
+      loadWithOverviewMode = true
+      useWideViewPort = true
     }
 
     webView.webChromeClient = object : android.webkit.WebChromeClient() {
@@ -205,6 +218,8 @@ class MainActivity : AppCompatActivity() {
       ): WebResourceResponse? {
         val url = request?.url ?: return null
         
+        Log.d("SpeyposIntercept", "Request: ${url}")
+
         // 1. Handle native API calls on the same virtual domain first to avoid asset loader collisions
         if (url.host == VIRTUAL_DOMAIN && url.path?.startsWith("/api/") == true) {
           Log.d("SpeyposIntercept", "Intercepting API: ${url.path}")
@@ -212,9 +227,46 @@ class MainActivity : AppCompatActivity() {
           if (apiResponse != null) return apiResponse
         }
 
-        // 2. Try to load from assets via AssetLoader
-        val assetResponse = assetLoader.shouldInterceptRequest(url)
-        if (assetResponse != null) return assetResponse
+        // 2. Map virtual domain to assets
+        if (url.host == VIRTUAL_DOMAIN) {
+          val path = url.path ?: ""
+          val assetPath = if (path.startsWith("/web/")) {
+            path.substring(1) // Keep the 'web/' part
+          } else {
+            "web" + path
+          }
+          
+          Log.d("SpeyposIntercept", "Mapping $path -> $assetPath")
+          
+          try {
+            val mimeType = when {
+              path.endsWith(".html") -> "text/html"
+              path.endsWith(".js") -> "application/javascript"
+              path.endsWith(".css") -> "text/css"
+              path.endsWith(".svg") -> "image/svg+xml"
+              path.endsWith(".png") -> "image/png"
+              path.endsWith(".ttf") -> "font/ttf"
+              path.endsWith(".woff") -> "font/woff"
+              path.endsWith(".woff2") -> "font/woff2"
+              else -> "application/octet-stream"
+            }
+            
+            val stream = applicationContext.assets.open(assetPath)
+            val response = WebResourceResponse(mimeType, "UTF-8", stream)
+            
+            // Critical for ESM modules and mixed content: allow all
+            response.responseHeaders = mapOf(
+              "Access-Control-Allow-Origin" to "*",
+              "Access-Control-Allow-Methods" to "GET, OPTIONS",
+              "Access-Control-Allow-Headers" to "Content-Type",
+              "Cache-Control" to "no-cache, no-store, must-revalidate"
+            )
+            
+            return response
+          } catch (e: Exception) {
+            Log.e("SpeyposIntercept", "Failed to open asset: $assetPath", e)
+          }
+        }
 
         return super.shouldInterceptRequest(view, request)
       }
@@ -248,6 +300,8 @@ class MainActivity : AppCompatActivity() {
   private fun handleNativeApiRequest(request: WebResourceRequest): WebResourceResponse? {
     val start = System.currentTimeMillis()
     val path = request.url.path ?: return null
+    
+    Log.d("SpeyposAPI", "Incoming API Request: ${request.method} $path")
     
     if (request.method == "OPTIONS") {
       return WebResourceResponse(
@@ -342,14 +396,17 @@ class MainActivity : AppCompatActivity() {
     DiagnosticsManager.addBreadcrumb("Loading Frontend")
     runtimeState.startupPhase = "loading_frontend"
     val frontendUrl = buildFrontendUrl()
+    Log.i("SpeyposWebView", "Loading URL: $frontendUrl")
     binding.webView.loadUrl(frontendUrl)
 
     loadTimeoutRunnable?.let(mainHandler::removeCallbacks)
     loadTimeoutRunnable = Runnable {
-      runtimeState.startupPhase = "frontend_timeout"
-      showError("The POS shell did not finish loading. Restart the app or rebuild the packaged assets.")
+      if (runtimeState.startupPhase == "loading_frontend") {
+        runtimeState.startupPhase = "frontend_timeout"
+        showError("The POS shell did not finish loading. Try restarting the app.")
+      }
     }
-    mainHandler.postDelayed(loadTimeoutRunnable!!, 15_000)
+    mainHandler.postDelayed(loadTimeoutRunnable!!, 20_000)
   }
 
   private fun buildFrontendUrl(): String {
@@ -358,7 +415,10 @@ class MainActivity : AppCompatActivity() {
 
     val backendUrl = Uri.encode("https://$VIRTUAL_DOMAIN")
     val encodedApiBaseUrl = Uri.encode(apiBaseUrl)
-    return "https://$VIRTUAL_DOMAIN/web/index.html?backendUrl=$backendUrl&apiBaseUrl=$encodedApiBaseUrl&apiProvider=$apiProvider&disableServiceWorker=true"
+    
+    // We append #/pos/shift (or just #/) to bypass any early redirect issues
+    // while keeping the native query params
+    return "https://$VIRTUAL_DOMAIN/web/index.html?backendUrl=$backendUrl&apiBaseUrl=$encodedApiBaseUrl&apiProvider=$apiProvider&disableServiceWorker=true#/"
   }
 
   private fun schedulePrintQueueWorkers() {

@@ -2,16 +2,54 @@ package com.speypos.shell
 
 import android.webkit.JavascriptInterface
 import java.time.Instant
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
 class SpeyposNativeBridge(
   private val configStore: NativeConfigStore,
   private val runtimeState: NativeRuntimeState,
+  private val updateManager: UpdateManager,
+  private val scope: CoroutineScope
 ) {
   init {
     android.util.Log.i("SpeyposNativeBridge", "Native Bridge initialized")
   }
+
+  @JavascriptInterface
+  fun checkForUpdates(): String {
+    return try {
+      scope.launch {
+        updateManager.checkForUpdates()
+      }
+      "{\"data\":{\"triggered\":true},\"error\":null}"
+    } catch (e: Exception) {
+      "{\"data\":null,\"error\":\"${e.message}\"}"
+    }
+  }
+
+  @JavascriptInterface
+  fun getUpdateMetadata(): String {
+    val meta = updateManager.getLastMetadata()
+    return JSONObject()
+      .put("data", meta ?: JSONObject.NULL)
+      .put("error", JSONObject.NULL)
+      .toString()
+  }
+  
+  @JavascriptInterface
+  fun performUpdate(apkUrl: String): String {
+    return try {
+      scope.launch {
+        updateManager.downloadAndInstall(apkUrl)
+      }
+      "{\"data\":{\"started\":true},\"error\":null}"
+    } catch (e: Exception) {
+      "{\"data\":null,\"error\":\"${e.message}\"}"
+    }
+  }
+
   @JavascriptInterface
   fun initialize(payloadJson: String): String {
     return try {

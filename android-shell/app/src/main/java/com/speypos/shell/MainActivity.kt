@@ -37,7 +37,8 @@ class MainActivity : AppCompatActivity() {
   private var loadTimeoutRunnable: Runnable? = null
   private val runtimeState = NativeRuntimeState()
   private val configStore by lazy { NativeConfigStore(applicationContext) }
-  private val nativeBridge by lazy { SpeyposNativeBridge(configStore, runtimeState) }
+  private val updateManager by lazy { UpdateManager(applicationContext, configStore) }
+  private val nativeBridge by lazy { SpeyposNativeBridge(configStore, runtimeState, updateManager, lifecycleScope) }
   
   private var filePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
   private val fileChooserLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
@@ -80,6 +81,11 @@ class MainActivity : AppCompatActivity() {
     configStore.seedIfNeeded()
     schedulePrintQueueWorkers()
     scheduleCloudSyncWorkers()
+    
+    // Check for updates on startup
+    lifecycleScope.launch {
+      updateManager.checkForUpdates()
+    }
 
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 

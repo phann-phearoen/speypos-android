@@ -29,11 +29,9 @@ jobs:
           cache: 'npm'
 
       - name: Install Frontend Dependencies
-        working-directory: speypos-pwa
-        run: npm ci
+        run: npm ci --prefix speypos-pwa
 
       - name: Build Frontend for Android
-        working-directory: speypos-pwa
         run: npm run pwa:build:android-webview
 
       - name: Grant Execute Permission to Gradlew

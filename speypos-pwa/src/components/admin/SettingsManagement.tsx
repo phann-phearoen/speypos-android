@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Save, Printer, MessageSquare, AlertTriangle, RefreshCw, Cloud, Activity, Trash2, Play } from 'lucide-react';
+import { Loader2, Save, Printer, MessageSquare, AlertTriangle, RefreshCw, Cloud, Activity, Trash2, Play, Download, Upload } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,10 @@ export function SettingsManagement() {
   const [savingTelegram, setSavingTelegram] = useState(false);
   const [savingCloudSync, setSavingCloudSync] = useState(false);
   const [savingPrinter, setSavingPrinter] = useState(false);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
 
   const [receiptCopies, setReceiptCopies] = useState<ReceiptCopyConfig[]>(DEFAULT_RECEIPT_COPIES);
 
@@ -382,6 +386,99 @@ export function SettingsManagement() {
     setReceiptCopies(prev => prev.map(r => r.variant === variant ? { ...r, count: validCount } : r));
   };
 
+  const handleExport = async (mode: 'menu' | 'full') => {
+    console.log(`[SettingsManagement] Starting export for mode: ${mode}`);
+    setIsExporting(mode);
+    try {
+      const { data, error } = await systemCompatibility.exportData(mode);
+      if (error) {
+        console.error(`[SettingsManagement] Export bridge error: ${error}`);
+        toast({ title: 'Export Failed', description: error, variant: 'destructive' });
+        return;
+      }
+
+      if (data) {
+        console.log(`[SettingsManagement] Received data from bridge. Size: ${JSON.stringify(data).length} chars`);
+        const jsonString = JSON.stringify(data, null, 2);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `speypos_${mode}_backup_${timestamp}.json`;
+
+        if (systemCompatibility.provider === 'native') {
+          console.log(`[SettingsManagement] Using native download for: ${filename}`);
+          const downloadResult = await systemCompatibility.downloadFile(jsonString, filename);
+          if (downloadResult.error) {
+            console.error(`[SettingsManagement] Native download failed: ${downloadResult.error}`);
+            toast({ title: 'Download Failed', description: downloadResult.error, variant: 'destructive' });
+          } else {
+            console.log(`[SettingsManagement] Native download successful`);
+            toast({ title: 'Success', description: `${mode === 'menu' ? 'Menu template' : 'Full backup'} saved to Downloads.` });
+          }
+        } else {
+          console.log(`[SettingsManagement] Using browser download for: ${filename}`);
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+
+          // Add a small delay before cleanup to ensure the browser handles the click
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log(`[SettingsManagement] Export cleanup completed`);
+          }, 100);
+
+          toast({ title: 'Success', description: `${mode === 'menu' ? 'Menu template' : 'Full backup'} downloaded.` });
+        }
+      } else {
+        console.warn(`[SettingsManagement] Export returned no data`);
+      }
+    } catch (err) {
+      console.error(`[SettingsManagement] Export exception:`, err);
+      toast({ title: 'Error', description: 'Failed to generate export file', variant: 'destructive' });
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const onImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPendingImportFile(file);
+      setShowImportConfirm(true);
+    }
+    // Reset input so the same file can be picked again
+    e.target.value = '';
+  };
+
+  const confirmImport = async () => {
+    if (!pendingImportFile) return;
+
+    setIsImporting(true);
+    setShowImportConfirm(false);
+
+    try {
+      const text = await pendingImportFile.text();
+      const payload = JSON.parse(text);
+
+      const { error } = await systemCompatibility.importData(payload);
+      if (error) {
+        toast({ title: 'Import Failed', description: error, variant: 'destructive' });
+        return;
+      }
+
+      toast({ title: 'Success', description: 'Data imported. The system will now reboot.' });
+      setTimeout(handleReboot, 2000);
+    } catch (err) {
+      toast({ title: 'Error', description: 'Invalid JSON file', variant: 'destructive' });
+    } finally {
+      setIsImporting(false);
+      setPendingImportFile(null);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -394,6 +491,59 @@ export function SettingsManagement() {
       </div>
 
       <div className="grid gap-6 max-w-2xl">
+        {/* Data Migration */}
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Data Migration</CardTitle>
+                <CardDescription>Export or import store data for franchise seeding or backups</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                variant="outline"
+                className="flex-col h-auto py-4 gap-2"
+                onClick={() => handleExport('menu')}
+                disabled={!!isExporting}
+              >
+                {isExporting === 'menu' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                <div className="text-xs font-semibold">Menu Template</div>
+                <div className="text-[10px] text-muted-foreground font-normal">Menu & Toppings only</div>
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-col h-auto py-4 gap-2"
+                onClick={() => handleExport('full')}
+                disabled={!!isExporting}
+              >
+                {isExporting === 'full' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5 text-orange-500" />}
+                <div className="text-xs font-semibold">Full Backup</div>
+                <div className="text-[10px] text-muted-foreground font-normal">All settings & staff</div>
+              </Button>
+            </div>
+
+            <div className="relative">
+              <input
+                type="file"
+                accept=".json"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={onImportFileChange}
+                disabled={isImporting}
+              />
+              <Button variant="secondary" className="w-full gap-2" disabled={isImporting}>
+                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                Restore from Backup
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Cloud Sync */}
         <Card>
           <CardHeader className="pb-4">
@@ -610,6 +760,29 @@ export function SettingsManagement() {
             </div>
             <div className="admin-crud-dialog-footer mt-6 flex justify-end gap-2">
               <Button onClick={() => setIsShowingDeadLetters(false)} variant="outline">Close</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showImportConfirm} onOpenChange={setShowImportConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <div className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-8 h-8 text-destructive" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold">Destructive Import</h3>
+              <p className="text-sm text-muted-foreground">
+                You are about to perform a full system restoration. This will <strong>erase all current data</strong> including staff, settings, and orders.
+              </p>
+              <p className="text-xs font-medium text-destructive">
+                This action cannot be undone. The app will reboot after completion.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowImportConfirm(false)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={confirmImport}>Confirm & Restore</Button>
             </div>
           </div>
         </DialogContent>

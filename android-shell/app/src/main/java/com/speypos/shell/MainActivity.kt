@@ -38,6 +38,24 @@ class MainActivity : AppCompatActivity() {
   private val runtimeState = NativeRuntimeState()
   private val configStore by lazy { NativeConfigStore(applicationContext) }
   private val nativeBridge by lazy { SpeyposNativeBridge(configStore, runtimeState) }
+  
+  private var filePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
+  private val fileChooserLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+    if (result.resultCode == android.app.Activity.RESULT_OK) {
+      val data = result.data?.data
+      val clipData = result.data?.clipData
+      
+      val results = when {
+        data != null -> arrayOf(data)
+        clipData != null -> Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
+        else -> null
+      }
+      filePathCallback?.onReceiveValue(results)
+    } else {
+      filePathCallback?.onReceiveValue(null)
+    }
+    filePathCallback = null
+  }
 
   private val assetLoader by lazy {
     WebViewAssetLoader.Builder()
@@ -111,6 +129,32 @@ class MainActivity : AppCompatActivity() {
       mediaPlaybackRequiresUserGesture = false
       cacheMode = WebSettings.LOAD_DEFAULT
       mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+    }
+
+    webView.webChromeClient = object : android.webkit.WebChromeClient() {
+      override fun onShowFileChooser(
+        webView: WebView?,
+        callback: android.webkit.ValueCallback<Array<Uri>>?,
+        fileChooserParams: FileChooserParams?
+      ): Boolean {
+        Log.i("SpeyposChrome", "onShowFileChooser triggered")
+        filePathCallback?.onReceiveValue(null)
+        filePathCallback = callback
+
+        val intent = fileChooserParams?.createIntent() ?: android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+          addCategory(android.content.Intent.CATEGORY_OPENABLE)
+          type = "*/*"
+        }
+
+        return try {
+          fileChooserLauncher.launch(intent)
+          true
+        } catch (e: Exception) {
+          Log.e("SpeyposChrome", "Failed to launch file chooser", e)
+          filePathCallback = null
+          false
+        }
+      }
     }
 
     webView.isLongClickable = false
@@ -210,6 +254,17 @@ class MainActivity : AppCompatActivity() {
       path == "/api/print-queue/status" -> nativeBridge.getPrintQueueStatus()
       path == "/api/runtime/status" -> nativeBridge.getRuntimeStatus()
       path == "/api/runtime/pending-actions" -> nativeBridge.getPendingActions()
+      path == "/api/system/export" -> {
+        val mode = request.url.getQueryParameter("mode") ?: "full"
+        nativeBridge.exportData(mode)
+      }
+      path == "/api/system/import" -> {
+        // This endpoint would normally need the POST body, but since we are intercepting 
+        // in a simplified way, we only support GET for these diagnostic triggers if needed,
+        // or we'd need to extract body from request (which is complex in shouldInterceptRequest).
+        // For now, we'll just acknowledge the path exists if anyone wants to test routing.
+        "{\"data\":{\"supported\":false,\"message\":\"Use Native Bridge for Import\"}}"
+      }
       path == "/api/display/session" -> {
         "{\"data\":null}" 
       }

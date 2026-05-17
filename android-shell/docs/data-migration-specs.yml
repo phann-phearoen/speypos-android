@@ -1,0 +1,331 @@
+version: 1
+generated_at: 2026-05-17
+scope: speypos-local data migration and seeding strategy — reference for Android native port
+
+source_of_truth:
+  schema_migrations: speypos-local/src/storage/migrations/001_initial_schema.sql
+  migration_runner: speypos-local/src/storage/migrations.js
+  database_init: speypos-local/src/storage/database.js
+  seed_script: speypos-local/data/seed-scripts/seed.js
+  dump_script: speypos-local/data/seed-scripts/dump.js
+  fix_script: speypos-local/data/seed-scripts/fix-order-totals.js
+  seedable_tables_config: speypos-local/data/seed-scripts/config.js
+  seed_files_dir: speypos-local/data/seeds/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 1 — SCHEMA MIGRATION
+# How the database structure evolves across versions at startup.
+# ─────────────────────────────────────────────────────────────────────────────
+
+schema_migration:
+  purpose: >
+    Bring the SQLite schema up to the current version on every application start,
+    without destroying existing data. Migrations run once and are never re-applied.
+
+  tracking_mechanism:
+    table: _migrations
+    columns:
+      version: INTEGER PRIMARY KEY
+      name: TEXT NOT NULL
+      applied_at: TEXT NOT NULL
+    behavior: >
+      Created automatically on the first migration run if it does not exist.
+      The runner reads MAX(version) from this table to determine where to resume.
+
+  file_convention:
+    pattern: "<NNN>_<description>.sql"
+    example: "001_initial_schema.sql"
+    ordering: alphabetical sort, which matches numeric sort when zero-padded
+    location: speypos-local/src/storage/migrations/
+
+  runtime_flow:
+    1: "Create _migrations table if absent."
+    2: "Read MAX(version) from _migrations (defaults to 0 if empty)."
+    3: "Read all *.sql files from the migrations directory, sorted alphabetically."
+    4: "For each file whose version number exceeds the current DB version:"
+    5: "  Execute the SQL file contents via db.exec()."
+    6: "  INSERT a record into _migrations with version, filename, and applied_at timestamp."
+    7: "If any migration fails, throw — the application does not start with a partial schema."
+
+  startup_integration:
+    call_site: initializeDatabase() in speypos-local/src/storage/database.js
+    order:
+      - Open SQLite connection
+      - Enable WAL journal mode (PRAGMA journal_mode = WAL)
+      - Call runMigrations(db)
+    guarantee: >
+      The database is always fully migrated before the application handles any request.
+
+  android_equivalent:
+    tool: Room Database with Migration objects
+    version_tracking: PRAGMA user_version (managed automatically by Room)
+    registration: addMigrations(MIGRATION_1_2, MIGRATION_2_3, ...) in RoomDatabase builder
+    schema_snapshots: exportSchema = true generates schemas/<version>.json; commit to git
+    failure_behavior: >
+      Never use fallbackToDestructiveMigration() in production.
+      Missing migration paths cause an IllegalStateException at startup — same intent
+      as the Node.js throw on failure.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 2 — SEEDABLE TABLES (shared by both seed modes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+seedable_tables:
+  purpose: >
+    Defines which tables carry portable menu/catalogue data that can be safely
+    replaced without affecting operational state. This list is the boundary between
+    the two seed modes.
+  tables:
+    - MenuCategory
+    - MenuItem
+    - MenuItemCategoryMap
+    - CustomizationOptionGroup
+    - CustomizationOption
+    - MenuItemCustomizationGroup
+    - ToppingGroup
+    - ToppingOption
+    - MenuItemToppingGroup
+    - MenuCategoryToppingGroup
+  excluded_by_design:
+    - Staff           # authentication credentials — never overwritten by a seed
+    - Store           # store identity and settings — never overwritten by a seed
+    - Setting         # runtime configuration — never overwritten by a seed
+    - Shift           # live operational data
+    - Order           # live transactional data
+    - OrderItem
+    - OrderCustomization
+    - OrderItemTopping
+    - Payment
+    - _migrations     # migration tracking — never touched by seed scripts
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 3 — SEED MODES
+# Two modes with clearly separated scope and safety guarantees.
+# ─────────────────────────────────────────────────────────────────────────────
+
+seed_modes:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  partial_mode:
+    label: "partial (default when --mode is omitted)"
+    purpose: >
+      Replaces only menu/catalogue data (SEEDABLE_TABLES) while leaving all
+      operational and configuration tables untouched. Safe to run against a
+      live database that has staff, settings, and order history in it.
+    use_cases:
+      - Transferring a menu from one store to another
+      - Resetting menu data during development without wiping staff or orders
+      - Applying a pre-configured menu snapshot to a fresh store setup
+
+    clear_behavior:
+      tables_cleared: SEEDABLE_TABLES in reverse-declaration order
+      reverse_reason: >
+        Deletion order respects FK constraints. Child tables (e.g. MenuItemCategoryMap)
+        are deleted before parent tables (e.g. MenuCategory) so no FK violation occurs.
+      foreign_keys: remain ON throughout — constraints are respected
+      tables_preserved:
+        - All tables not in SEEDABLE_TABLES (staff, orders, shifts, settings, store)
+
+    insert_behavior:
+      atomicity: entire clear + insert runs inside a single SQLite transaction
+      rollback_on_error: yes — database is left unchanged if insert fails
+      foreign_keys_during_insert: ON — insert order in the SQL file must satisfy FK dependencies
+
+    sql_file_requirements:
+      content: INSERT statements only (no CREATE TABLE, no DROP)
+      insert_order: parent tables before child tables (FK dependencies must be satisfied)
+      example_order:
+        - MenuCategory rows
+        - MenuItem rows
+        - MenuItemCategoryMap rows
+        - CustomizationOptionGroup rows
+        - CustomizationOption rows
+        - MenuItemCustomizationGroup rows
+        - ToppingGroup rows
+        - ToppingOption rows
+        - MenuItemToppingGroup rows
+
+    android_equivalent:
+      pattern: first-launch guarded SQL execution
+      implementation: >
+        On application start, check SharedPreferences for a seed version flag.
+        If the flag is absent or lower than the current seed version, open the
+        target .sql file from assets/seeds/, run the DELETE + INSERT sequence
+        inside a single Room transaction with FK constraints ON, then update the
+        flag. This mirrors the partial clear + insert behavior exactly.
+      flag_key_example: "seed_menu_version"
+      assets_path: "assets/seeds/<snapshot-name>.sql"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  full_mode:
+    label: "full (requires --mode=full flag)"
+    purpose: >
+      Replaces all data in every user table. Used for full database restoration,
+      transferring a complete snapshot between environments, or resetting a
+      development instance to a known-good state. Destructive — operational
+      data (orders, shifts, staff) is erased.
+    use_cases:
+      - Restoring a complete database snapshot from a dump file
+      - Resetting a development/staging environment to a production snapshot
+      - Migrating a full dataset to a new device
+
+    clear_behavior:
+      tables_cleared: >
+        All tables in the database discovered dynamically via sqlite_master
+        (excluding sqlite_ system tables). The list is not hardcoded.
+      foreign_keys: disabled (PRAGMA foreign_keys = OFF) before clearing
+      fk_disable_reason: >
+        Full mode erases tables in arbitrary order without regard to FK constraints.
+        Disabling FK enforcement is required to allow deletion in any order.
+      re_enable_fk: PRAGMA foreign_keys = ON is executed in the finally block after completion
+
+    insert_behavior:
+      atomicity: entire clear + insert runs inside a single SQLite transaction
+      rollback_on_error: yes — database is left unchanged if insert fails
+      foreign_keys_during_insert: OFF during the transaction (re-enabled after)
+
+    sql_file_requirements:
+      content: INSERT statements for all tables to be restored
+      typical_source: dump.js --mode=full output
+      note: >
+        The SQL file produced by dump.js uses INSERT statements only (no CREATE TABLE).
+        Schema must already exist via the migration runner before the seed is applied.
+
+    safety_warnings:
+      - Erases Staff records (all login credentials lost)
+      - Erases all Shift and Order history
+      - Erases Store identity and Settings
+      - Not safe to run against a live production database
+      - Always verify the input SQL file before running
+
+    android_equivalent:
+      pattern: pre-populated Room database asset or manual full-wipe restore
+      implementation_option_a: >
+        Bundle a pre-built speypos.db SQLite file in assets/. Use
+        Room.databaseBuilder().createFromAsset("speypos.db"). Room copies it on
+        fresh install only — migrations run on top of it for subsequent updates.
+      implementation_option_b: >
+        For restore flows (e.g. admin import): close the Room database, copy the
+        restore file over the database path using File.copyTo(), then reopen.
+        Room will detect the user_version and apply pending migrations automatically.
+      note: >
+        Full mode is always explicit and operator-initiated. It should never run
+        automatically at startup on a device that may have live operational data.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 4 — DUMP (snapshot export)
+# ─────────────────────────────────────────────────────────────────────────────
+
+dump:
+  purpose: >
+    Export current database contents as INSERT-only SQL for portability,
+    backup, and use as future seed files. Does not export schema (CREATE TABLE).
+  modes:
+    partial:
+      tables_dumped: SEEDABLE_TABLES only
+      use_case: Export menu/catalogue for transfer to another store instance
+    full:
+      tables_dumped: All tables discovered via sqlite_master
+      use_case: Full snapshot for backup or environment cloning
+  output_format:
+    type: plain SQL INSERT statements
+    quoting: column names double-quoted; string values single-quoted with escaped apostrophes
+    null_handling: NULL keyword (not empty string)
+    filename_convention: "<store-name>-<YYYY-M-D-H-m>.sql"
+    examples:
+      - kaom-cafe-2026-1-24-11-53.sql
+      - kaom-cafe-snapshot-2026-1-30-20-56.sql
+  android_equivalent:
+    partial: >
+      Query each SEEDABLE_TABLE, serialize rows to INSERT statements, write to
+      a .sql file in external storage or a content URI. Used to export a menu
+      for transfer.
+    full: >
+      Close the Room database (checkpoints WAL), copy the raw .db file to the
+      export destination. This is simpler and more reliable than generating SQL.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 5 — ONE-OFF DATA FIX SCRIPTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+data_fix_scripts:
+  purpose: >
+    Targeted corrections to existing data that cannot be expressed as a schema
+    change. Separate from migration files because they are run manually and
+    on-demand, not automatically at startup.
+  example:
+    script: fix-order-totals.js
+    problem: >
+      Orders stored an incorrect total_amount that did not account for
+      customization and topping add-on prices.
+    correction: >
+      Recalculates correct total_amount per order from its OrderItem,
+      OrderCustomization, and OrderItemTopping records, then updates only
+      orders where total_amount differs from the recalculated value.
+    dry_run_support: yes (--dry-run flag previews changes without writing)
+    preview_support: yes (--preview=N limits console output rows)
+    atomicity: all updates wrapped in a single transaction
+
+  android_equivalent:
+    recommended_approach: >
+      Express data-only corrections as a numbered Room Migration even when no
+      schema changes are involved. This ensures the fix runs exactly once, in
+      version order, and is tracked by PRAGMA user_version.
+    example_pattern: |
+      val MIGRATION_3_4 = object : Migration(3, 4) {
+          override fun migrate(db: SupportSQLiteDatabase) {
+              // No schema change — data correction only
+              db.execSQL(
+                  "UPDATE \"Order\" SET total_amount = (" +
+                  "  SELECT SUM(oi.unit_price * oi.quantity) " +
+                  "  FROM OrderItem oi WHERE oi.order_id = \"Order\".id" +
+                  ") WHERE total_amount = 0"
+              )
+          }
+      }
+    dry_run_alternative: >
+      For complex corrections that need verification before committing, implement
+      as a one-shot admin screen or a debug-build-only tool that previews affected
+      rows and requires explicit confirmation before applying the transaction.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 6 — CROSS-CUTTING RULES
+# ─────────────────────────────────────────────────────────────────────────────
+
+cross_cutting_rules:
+  atomicity:
+    rule: >
+      Every migration, seed, or fix operation wraps its SQL in a single transaction.
+      On failure the database is left in its original state — no partial writes.
+    android_note: >
+      Room migrations run inside an implicit transaction. Custom SQLiteDatabase
+      operations must use beginTransaction / setTransactionSuccessful / endTransaction
+      (or equivalent Kotlin extensions) to maintain this guarantee.
+
+  fk_enforcement:
+    partial_seed: foreign_keys ON at all times
+    full_seed: foreign_keys OFF during clear, re-enabled in finally block
+    migrations: foreign_keys ON (schema-only changes do not violate FK constraints)
+    android_note: >
+      Room enables FK enforcement via PRAGMA foreign_keys = ON automatically when
+      built with .setForeignKeyConstraintsEnabled(true). Replicate the full-mode
+      disable/re-enable pattern explicitly when performing a destructive restore.
+
+  schema_must_precede_seed:
+    rule: >
+      The schema migration runner must always complete before any seed or fix
+      script is applied. Seed SQL contains only INSERT statements — it relies on
+      the tables already existing.
+    android_note: >
+      Room guarantees this: the database builder runs all pending migrations before
+      the database is returned to the caller. Call seed logic only after the
+      database instance is fully ready.
+
+  never_seed_in_production_automatically:
+    rule: >
+      Full-mode seeds are always manual/operator-initiated.
+      Partial-mode seeds are safe on first launch but should be guarded by a
+      version flag so they do not re-run on subsequent starts.
+    android_note: >
+      Use a SharedPreferences key (e.g. seed_menu_version = <N>) to record the
+      last applied seed version. Bump N in code when a new seed SQL file is bundled.

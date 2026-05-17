@@ -1,6 +1,10 @@
 package com.speypos.shell
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -40,6 +44,20 @@ class NativeConfigStore(private val context: Context) {
     private const val PREF_NATIVE_PENDING_ACTIONS_JSON = "native.pending.actions.json"
     private const val PREF_NATIVE_SYNC_QUEUE_JSON = "native.sync.queue.json"
     private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
+
+    private val MENU_RELATED_KEYS = listOf(
+      PREF_NATIVE_MENU_CATEGORIES_JSON,
+      PREF_NATIVE_MENU_ITEMS_JSON,
+      PREF_NATIVE_MENU_ITEM_CATEGORY_MAPPINGS_JSON,
+      PREF_NATIVE_CUSTOMIZATION_GROUPS_JSON,
+      PREF_NATIVE_CUSTOMIZATION_OPTIONS_JSON,
+      PREF_NATIVE_MENU_ITEM_CUSTOMIZATION_MAPPINGS_JSON,
+      PREF_NATIVE_MENU_CATEGORY_CUSTOMIZATION_MAPPINGS_JSON,
+      PREF_NATIVE_TOPPING_GROUPS_JSON,
+      PREF_NATIVE_TOPPING_OPTIONS_JSON,
+      PREF_NATIVE_MENU_ITEM_TOPPING_MAPPINGS_JSON,
+      PREF_NATIVE_MENU_CATEGORY_TOPPING_MAPPINGS_JSON
+    )
 
     private const val PRINT_JOB_PENDING = "pending"
     private const val PRINT_JOB_RETRYING = "retrying"
@@ -2133,8 +2151,106 @@ class NativeConfigStore(private val context: Context) {
     return JSONObject().put("message", "Setup completed")
   }
 
+  fun exportData(mode: String): JSONObject {
+    Log.i("NativeConfigStore", "exportData called with mode: $mode")
+    val preferences = getPreferences()
+    val allEntries = preferences.all
+    val data = JSONObject()
+    
+    val keysToExport = if (mode == "menu") {
+      MENU_RELATED_KEYS
+    } else {
+      allEntries.keys.toList()
+    }
+
+    Log.d("NativeConfigStore", "Keys to export count: ${keysToExport.size}")
+
+    keysToExport.forEach { key ->
+      allEntries[key]?.let { value ->
+        data.put(key, value)
+      }
+    }
+
+    val result = JSONObject()
+      .put("version", 1)
+      .put("mode", mode)
+      .put("exported_at", System.currentTimeMillis())
+      .put("data", data)
+    
+    Log.i("NativeConfigStore", "exportData: successfully generated JSON. Size: ${result.toString().length} bytes")
+    return result
+  }
+
+  fun importData(payload: JSONObject): JSONObject {
+    val data = payload.optJSONObject("data") ?: throw IllegalArgumentException("Missing data")
+    val mode = payload.optString("mode", "full")
+    val editor = getPreferences().edit()
+
+    // Clear existing data in target scope to prevent orphans
+    if (mode == "menu") {
+      MENU_RELATED_KEYS.forEach { editor.remove(it) }
+    } else if (mode == "full") {
+      editor.clear()
+    }
+
+    val keys = data.keys()
+    while (keys.hasNext()) {
+      val key = keys.next()
+      val value = data.get(key)
+      when (value) {
+        is String -> editor.putString(key, value)
+        is Boolean -> editor.putBoolean(key, value)
+        is Int -> editor.putInt(key, value)
+        is Long -> editor.putLong(key, value)
+      }
+    }
+
+    if (mode == "full") {
+      editor.putBoolean(PREF_SYSTEM_INITIALIZED, true)
+    }
+    editor.apply()
+    return JSONObject().put("success", true)
+  }
+
   fun resetAllData() {
     getPreferences().edit().clear().apply()
+  }
+
+  fun saveToDownloads(jsonString: String, filename: String): Boolean {
+    Log.i("NativeConfigStore", "Saving file to downloads: $filename")
+    return try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val contentValues = ContentValues().apply {
+          put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+          put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+          put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+        
+        if (uri != null) {
+          resolver.openOutputStream(uri)?.use { outputStream ->
+            outputStream.write(jsonString.toByteArray())
+          }
+          Log.i("NativeConfigStore", "File saved successfully (API 29+) to: $uri")
+          true
+        } else {
+          Log.e("NativeConfigStore", "Failed to create MediaStore entry")
+          false
+        }
+      } else {
+        // Fallback for API 26-28
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = java.io.File(downloadsDir, filename)
+        file.writeText(jsonString)
+        Log.i("NativeConfigStore", "File saved successfully (Legacy API) to: ${file.absolutePath}")
+        true
+      }
+    } catch (e: Exception) {
+      Log.e("NativeConfigStore", "Error saving file: ${e.message}", e)
+      false
+    }
   }
 
   private fun getPreferences() =

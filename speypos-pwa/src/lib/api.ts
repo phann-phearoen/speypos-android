@@ -417,6 +417,11 @@ export const systemApi = {
   getRuntimeStatus: () => request<RuntimeStatus>('/system/runtime-status'),
   triggerRetry: () => request<null>('/system/retry-jobs', { method: 'POST' }),
   reboot: () => request<{ message: string }>('/system/reboot', { method: 'POST' }),
+  exportData: (mode: 'menu' | 'full') => request<any>(`/system/export?mode=${mode}`),
+  importData: (payload: any) => request<any>('/system/import', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
 };
 
 // Health Check API (for reboot polling - uses raw fetch to avoid global error handling)

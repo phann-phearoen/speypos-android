@@ -19,6 +19,9 @@ export interface SystemCompatibilityProvider {
   purgeDeadLetters(): Promise<CompatibilityResult<any>>;
   forceRetryAction(actionId: string): Promise<CompatibilityResult<any>>;
   reboot(): Promise<CompatibilityResult<any>>;
+  exportData(mode: 'menu' | 'full'): Promise<CompatibilityResult<any>>;
+  importData(payload: any): Promise<CompatibilityResult<any>>;
+  downloadFile(jsonString: string, filename: string): Promise<CompatibilityResult<boolean>>;
 }
 
 const httpSystemCompatibilityProvider: SystemCompatibilityProvider = {
@@ -32,6 +35,9 @@ const httpSystemCompatibilityProvider: SystemCompatibilityProvider = {
   purgeDeadLetters: async () => ({ data: null, error: 'Not implemented for HTTP' }),
   forceRetryAction: async () => ({ data: null, error: 'Not implemented for HTTP' }),
   reboot: () => systemApi.reboot(),
+  exportData: (mode) => systemApi.exportData(mode),
+  importData: (payload) => systemApi.importData(payload),
+  downloadFile: async () => ({ data: false, error: 'Not implemented for HTTP' }),
 };
 
 const nativeSystemCompatibilityProvider: SystemCompatibilityProvider = {
@@ -107,6 +113,23 @@ const nativeSystemCompatibilityProvider: SystemCompatibilityProvider = {
     }
 
     return httpSystemCompatibilityProvider.reboot();
+  },
+  exportData: async (mode: 'menu' | 'full') => {
+    const result = callNativeBridge<any>('exportData', mode);
+    if (!result.error) {
+      return result;
+    }
+    return httpSystemCompatibilityProvider.exportData(mode);
+  },
+  importData: async (payload: any) => {
+    const result = callNativeBridge<any>('importData', JSON.stringify(payload));
+    if (!result.error) {
+      return result;
+    }
+    return httpSystemCompatibilityProvider.importData(payload);
+  },
+  downloadFile: async (jsonString: string, filename: string) => {
+    return callNativeBridge<boolean>('downloadFile', jsonString, filename);
   },
 };
 

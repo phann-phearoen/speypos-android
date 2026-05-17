@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, User, Store, AlertCircle, RefreshCw, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Loader2, User, Store, AlertCircle, RefreshCw, Eye, EyeOff, CheckCircle2, Upload } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 interface SetupPageProps {
@@ -53,6 +53,7 @@ export function SetupPage({ onComplete, connectionError, onRetry }: SetupPagePro
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [setupState, setSetupState] = useState<SetupState>('form');
+  const [isImporting, setIsImporting] = useState(false);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -122,6 +123,33 @@ export function SetupPage({ onComplete, connectionError, onRetry }: SetupPagePro
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Setup failed. Please try again.');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleImportTemplate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setSubmitError(null);
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+
+      const { error } = await systemCompatibility.importData(payload);
+      if (error) {
+        setSubmitError(`Import failed: ${error}`);
+        setIsImporting(false);
+        return;
+      }
+
+      // Success - show completion screen but indicate reboot is needed
+      setSetupState('complete');
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Invalid JSON file');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -218,6 +246,47 @@ export function SetupPage({ onComplete, connectionError, onRetry }: SetupPagePro
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Template Import */}
+        <Card className="mb-8 border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" />
+              Seed from Template
+            </CardTitle>
+            <CardDescription>
+              Import a pre-configured menu or full backup from another store
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative">
+              <input
+                type="file"
+                accept=".json"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={handleImportTemplate}
+                disabled={isImporting || isSubmitting}
+              />
+              <Button
+                variant="outline"
+                className="w-full border-dashed border-primary/30 hover:border-primary/50"
+                disabled={isImporting || isSubmitting}
+              >
+                {isImporting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload JSON Template
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Admin Account Section */}

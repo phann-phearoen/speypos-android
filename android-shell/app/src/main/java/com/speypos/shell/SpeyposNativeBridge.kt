@@ -855,4 +855,50 @@ class SpeyposNativeBridge(
       .put("error", JSONObject.NULL)
       .toString()
   }
+
+  @JavascriptInterface
+  fun exportData(mode: String): String {
+    return try {
+      JSONObject()
+        .put("data", configStore.exportData(mode))
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Export failed")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun importData(payloadJson: String): String {
+    return try {
+      JSONObject()
+        .put("data", configStore.importData(JSONObject(payloadJson)))
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Import failed")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun downloadFile(jsonString: String, filename: String): String {
+    return try {
+      val success = configStore.saveToDownloads(jsonString, filename)
+      JSONObject()
+        .put("data", success)
+        .put("error", if (success) JSONObject.NULL else "Failed to save file")
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", false)
+        .put("error", error.message ?: "Download failed")
+        .toString()
+    }
+  }
 }

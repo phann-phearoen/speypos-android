@@ -2218,11 +2218,13 @@ class NativeConfigStore(private val context: Context) {
 
   fun saveToDownloads(jsonString: String, filename: String): Boolean {
     Log.i("NativeConfigStore", "Saving file to downloads: $filename")
+    val mimeType = if (filename.endsWith(".txt")) "text/plain" else "application/json"
+    
     return try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val contentValues = ContentValues().apply {
           put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-          put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+          put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
           put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
 
@@ -2355,6 +2357,18 @@ class NativeConfigStore(private val context: Context) {
       val s = settings.optJSONObject(i) ?: continue
       if (s.optString("key") == "telegram.token") {
         return s.optString("value", "")
+      }
+    }
+    return ""
+  }
+
+  fun getShiftTrackerChatId(): String {
+    val settings = getTelegramSettings()
+    val intents = settings.optJSONArray("intents") ?: JSONArray()
+    for (i in 0 until intents.length()) {
+      val intent = intents.optJSONObject(i) ?: continue
+      if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
+        return intent.optString("chat_id", "")
       }
     }
     return ""

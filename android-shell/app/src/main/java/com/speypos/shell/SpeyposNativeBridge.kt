@@ -901,4 +901,37 @@ class SpeyposNativeBridge(
         .toString()
     }
   }
+
+  @JavascriptInterface
+  fun exportLogs(): String {
+    return try {
+      val timestamp = Instant.now().toString().replace(":", "-")
+      val filename = "speypos_diagnostics_$timestamp.txt"
+      
+      val report = """
+        SPEYPOS DIAGNOSTICS REPORT
+        Generated: ${Instant.now()}
+        Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}
+        Android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})
+        
+        --- BREADCRUMBS ---
+        ${DiagnosticsManager.dumpBreadcrumbs()}
+        
+        --- LOGCAT (LAST 500 LINES) ---
+        ${DiagnosticsManager.collectLogcat()}
+      """.trimIndent()
+      
+      val success = configStore.saveToDownloads(report, filename)
+      
+      JSONObject()
+        .put("data", JSONObject().put("success", success).put("filename", filename))
+        .put("error", if (success) JSONObject.NULL else "Failed to export logs")
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Log export failed")
+        .toString()
+    }
+  }
 }

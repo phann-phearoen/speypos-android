@@ -22,6 +22,7 @@ export interface SystemCompatibilityProvider {
   exportData(mode: 'menu' | 'full'): Promise<CompatibilityResult<any>>;
   importData(payload: any): Promise<CompatibilityResult<any>>;
   downloadFile(jsonString: string, filename: string): Promise<CompatibilityResult<boolean>>;
+  exportLogs(): Promise<CompatibilityResult<any>>;
 }
 
 const httpSystemCompatibilityProvider: SystemCompatibilityProvider = {
@@ -38,6 +39,7 @@ const httpSystemCompatibilityProvider: SystemCompatibilityProvider = {
   exportData: (mode) => systemApi.exportData(mode),
   importData: (payload) => systemApi.importData(payload),
   downloadFile: async () => ({ data: false, error: 'Not implemented for HTTP' }),
+  exportLogs: async () => ({ data: null, error: 'Not implemented for HTTP' }),
 };
 
 const nativeSystemCompatibilityProvider: SystemCompatibilityProvider = {
@@ -130,6 +132,9 @@ const nativeSystemCompatibilityProvider: SystemCompatibilityProvider = {
   },
   downloadFile: async (jsonString: string, filename: string) => {
     return callNativeBridge<boolean>('downloadFile', jsonString, filename);
+  },
+  exportLogs: async () => {
+    return callNativeBridge<any>('exportLogs');
   },
 };
 

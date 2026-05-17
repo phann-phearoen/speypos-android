@@ -67,6 +67,13 @@ class MainActivity : AppCompatActivity() {
   @SuppressLint("SetJavaScriptEnabled")
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    
+    // Initialize Crash Handler
+    val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+    Thread.setDefaultUncaughtExceptionHandler(SpeyposCrashHandler(applicationContext, configStore, defaultHandler))
+    
+    DiagnosticsManager.addBreadcrumb("App Created")
+    
     binding = ActivityMainBinding.inflate(layoutInflater)
     setContentView(binding.root)
     
@@ -103,16 +110,19 @@ class MainActivity : AppCompatActivity() {
   }
 
   override fun onPause() {
+    DiagnosticsManager.addBreadcrumb("App Paused")
     binding.webView.onPause()
     super.onPause()
   }
 
   override fun onResume() {
     super.onResume()
+    DiagnosticsManager.addBreadcrumb("App Resumed")
     binding.webView.onResume()
   }
 
   override fun onDestroy() {
+    DiagnosticsManager.addBreadcrumb("App Destroyed")
     loadTimeoutRunnable?.let(mainHandler::removeCallbacks)
     binding.webView.destroy()
     super.onDestroy()
@@ -132,6 +142,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     webView.webChromeClient = object : android.webkit.WebChromeClient() {
+      override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+        val message = consoleMessage?.message() ?: ""
+        val level = consoleMessage?.messageLevel()
+        val source = consoleMessage?.sourceId() ?: "unknown"
+        val line = consoleMessage?.lineNumber() ?: 0
+
+        val formatted = "[JS] [$level] $message ($source:$line)"
+        when (level) {
+          android.webkit.ConsoleMessage.MessageLevel.ERROR -> Log.e("SpeyposJS", formatted)
+          android.webkit.ConsoleMessage.MessageLevel.WARNING -> Log.w("SpeyposJS", formatted)
+          else -> Log.d("SpeyposJS", formatted)
+        }
+        
+        DiagnosticsManager.addBreadcrumb("JS $level: $message")
+        return true
+      }
+
       override fun onShowFileChooser(
         webView: WebView?,
         callback: android.webkit.ValueCallback<Array<Uri>>?,
@@ -186,6 +213,7 @@ class MainActivity : AppCompatActivity() {
       }
 
       override fun onPageFinished(view: WebView?, url: String?) {
+        DiagnosticsManager.addBreadcrumb("Page Finished: $url")
         runtimeState.startupPhase = "ready"
         loadTimeoutRunnable?.let(mainHandler::removeCallbacks)
         showWebView()
@@ -196,6 +224,8 @@ class MainActivity : AppCompatActivity() {
         request: WebResourceRequest?,
         error: WebResourceError?
       ) {
+        val description = error?.description ?: "Unknown Error"
+        DiagnosticsManager.addBreadcrumb("Page Error: $description for ${request?.url}")
         if (request?.isForMainFrame == true) {
           runtimeState.startupPhase = "frontend_error"
           showError("Unable to load the POS shell. Check the packaged frontend assets and try again.")
@@ -298,6 +328,7 @@ class MainActivity : AppCompatActivity() {
   }
 
   private fun loadFrontend() {
+    DiagnosticsManager.addBreadcrumb("Loading Frontend")
     runtimeState.startupPhase = "loading_frontend"
     val frontendUrl = buildFrontendUrl()
     binding.webView.loadUrl(frontendUrl)

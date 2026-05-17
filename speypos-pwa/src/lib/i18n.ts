@@ -303,6 +303,7 @@ const translations: Record<string, TranslationDictionary> = {
     'admin.settings.diagnosticsLastUpdated': 'Last updated: {{time}}',
     'admin.settings.diagnosticsDetails': 'Details',
     'admin.settings.diagnosticsPurge': 'Purge All',
+    'admin.settings.diagnosticsExportLogs': 'Export Diagnostic Log',
     'admin.settings.diagnosticsDeadLetterDetails': 'Dead Letter Details',
 
     // Setup Page
@@ -783,6 +784,7 @@ const translations: Record<string, TranslationDictionary> = {
     'admin.settings.diagnosticsLastUpdated': 'បច្ចុប្បន្នភាពចុងក្រោយ៖ {{time}}',
     'admin.settings.diagnosticsDetails': 'ព័ត៌មានលម្អិត',
     'admin.settings.diagnosticsPurge': 'សម្អាតទាំងអស់',
+    'admin.settings.diagnosticsExportLogs': 'នាំចេញកំណត់ហេតុវិភាគ (Log)',
     'admin.settings.diagnosticsDeadLetterDetails': 'ព័ត៌មានលម្អិតលិខិតស្លាប់',
 
     // Setup Page

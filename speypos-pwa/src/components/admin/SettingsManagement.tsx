@@ -85,6 +85,7 @@ export function SettingsManagement() {
   const [deadLetterDetails, setDeadLetterDetails] = useState<DeadLetterDetails | null>(null);
   const [isShowingDeadLetters, setIsShowingDeadLetters] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+  const [isExportingLogs, setIsExportingLogs] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -138,6 +139,22 @@ export function SettingsManagement() {
       await refreshRuntimeStatus();
     } catch (err) {
       toast({ title: 'Error', description: 'Failed to retry action', variant: 'destructive' });
+    }
+  };
+
+  const handleExportLogs = async () => {
+    setIsExportingLogs(true);
+    try {
+      const { data, error } = await systemCompatibility.exportLogs();
+      if (error) {
+        toast({ title: t('toast.error'), description: error, variant: 'destructive' });
+      } else if (data?.success) {
+        toast({ title: t('toast.success'), description: t('admin.settings.migrationExportSuccess') });
+      }
+    } catch (err) {
+      toast({ title: t('toast.error'), description: 'Failed to export logs', variant: 'destructive' });
+    } finally {
+      setIsExportingLogs(false);
     }
   };
 
@@ -728,6 +745,16 @@ export function SettingsManagement() {
                     <Button onClick={showDeadLetters} variant="outline" size="sm" className="flex-1 gap-2"><AlertTriangle className="w-4 h-4 text-warning" />{t('admin.settings.diagnosticsDetails')}</Button>
                     <Button onClick={purgeDeadLetters} variant="outline" size="sm" className="flex-1 gap-2 text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" />{t('admin.settings.diagnosticsPurge')}</Button>
                   </div>
+                  <Button
+                    onClick={handleExportLogs}
+                    disabled={isExportingLogs}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full gap-2"
+                  >
+                    {isExportingLogs ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    {t('admin.settings.diagnosticsExportLogs')}
+                  </Button>
                   <div className="text-[10px] text-muted-foreground text-center">{t('admin.settings.diagnosticsLastUpdated').replace('{{time}}', runtimeStatus.updatedAt)}</div>
                 </div>
               )}

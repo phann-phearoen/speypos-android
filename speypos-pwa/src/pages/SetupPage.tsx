@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, User, Store, AlertCircle, RefreshCw, Eye, EyeOff, CheckCircle2, Upload } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
+import { useTranslation } from '@/lib/i18n';
+
 interface SetupPageProps {
   onComplete: () => void;
   connectionError: string | null;
@@ -38,6 +40,7 @@ const systemCompatibility = getSystemCompatibilityProvider();
 type SetupState = 'form' | 'complete' | 'rebooting';
 
 export function SetupPage({ onComplete, connectionError, onRetry }: SetupPageProps) {
+  const { t } = useTranslation();
   // Form state
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -252,10 +255,10 @@ export function SetupPage({ onComplete, connectionError, onRetry }: SetupPagePro
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Upload className="h-5 w-5 text-primary" />
-              Seed from Template
+              {t('setup.seedTitle')}
             </CardTitle>
             <CardDescription>
-              Import a pre-configured menu or full backup from another store
+              {t('setup.seedDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -275,12 +278,12 @@ export function SetupPage({ onComplete, connectionError, onRetry }: SetupPagePro
                 {isImporting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Importing...
+                    {t('setup.seedImporting')}
                   </>
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Upload JSON Template
+                    {t('setup.seedUpload')}
                   </>
                 )}
               </Button>

@@ -393,7 +393,7 @@ export function SettingsManagement() {
       const { data, error } = await systemCompatibility.exportData(mode);
       if (error) {
         console.error(`[SettingsManagement] Export bridge error: ${error}`);
-        toast({ title: 'Export Failed', description: error, variant: 'destructive' });
+        toast({ title: t('toast.error'), description: error, variant: 'destructive' });
         return;
       }
 
@@ -408,10 +408,10 @@ export function SettingsManagement() {
           const downloadResult = await systemCompatibility.downloadFile(jsonString, filename);
           if (downloadResult.error) {
             console.error(`[SettingsManagement] Native download failed: ${downloadResult.error}`);
-            toast({ title: 'Download Failed', description: downloadResult.error, variant: 'destructive' });
+            toast({ title: t('toast.error'), description: downloadResult.error, variant: 'destructive' });
           } else {
             console.log(`[SettingsManagement] Native download successful`);
-            toast({ title: 'Success', description: `${mode === 'menu' ? 'Menu template' : 'Full backup'} saved to Downloads.` });
+            toast({ title: t('toast.success'), description: t('admin.settings.migrationExportSuccess') });
           }
         } else {
           console.log(`[SettingsManagement] Using browser download for: ${filename}`);
@@ -423,21 +423,20 @@ export function SettingsManagement() {
           document.body.appendChild(a);
           a.click();
 
-          // Add a small delay before cleanup to ensure the browser handles the click
           setTimeout(() => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             console.log(`[SettingsManagement] Export cleanup completed`);
           }, 100);
 
-          toast({ title: 'Success', description: `${mode === 'menu' ? 'Menu template' : 'Full backup'} downloaded.` });
+          toast({ title: t('toast.success'), description: t('admin.settings.migrationExportSuccess') });
         }
       } else {
         console.warn(`[SettingsManagement] Export returned no data`);
       }
     } catch (err) {
       console.error(`[SettingsManagement] Export exception:`, err);
-      toast({ title: 'Error', description: 'Failed to generate export file', variant: 'destructive' });
+      toast({ title: t('toast.error'), description: t('toast.failedToSave'), variant: 'destructive' });
     } finally {
       setIsExporting(null);
     }
@@ -465,14 +464,14 @@ export function SettingsManagement() {
 
       const { error } = await systemCompatibility.importData(payload);
       if (error) {
-        toast({ title: 'Import Failed', description: error, variant: 'destructive' });
+        toast({ title: t('toast.error'), description: error, variant: 'destructive' });
         return;
       }
 
-      toast({ title: 'Success', description: 'Data imported. The system will now reboot.' });
+      toast({ title: t('toast.success'), description: t('admin.settings.migrationImportSuccess') });
       setTimeout(handleReboot, 2000);
     } catch (err) {
-      toast({ title: 'Error', description: 'Invalid JSON file', variant: 'destructive' });
+      toast({ title: t('toast.error'), description: 'Invalid JSON file', variant: 'destructive' });
     } finally {
       setIsImporting(false);
       setPendingImportFile(null);
@@ -491,59 +490,6 @@ export function SettingsManagement() {
       </div>
 
       <div className="grid gap-6 max-w-2xl">
-        {/* Data Migration */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <RefreshCw className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Data Migration</CardTitle>
-                <CardDescription>Export or import store data for franchise seeding or backups</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Button
-                variant="outline"
-                className="flex-col h-auto py-4 gap-2"
-                onClick={() => handleExport('menu')}
-                disabled={!!isExporting}
-              >
-                {isExporting === 'menu' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                <div className="text-xs font-semibold">Menu Template</div>
-                <div className="text-[10px] text-muted-foreground font-normal">Menu & Toppings only</div>
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-col h-auto py-4 gap-2"
-                onClick={() => handleExport('full')}
-                disabled={!!isExporting}
-              >
-                {isExporting === 'full' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5 text-orange-500" />}
-                <div className="text-xs font-semibold">Full Backup</div>
-                <div className="text-[10px] text-muted-foreground font-normal">All settings & staff</div>
-              </Button>
-            </div>
-
-            <div className="relative">
-              <input
-                type="file"
-                accept=".json"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                onChange={onImportFileChange}
-                disabled={isImporting}
-              />
-              <Button variant="secondary" className="w-full gap-2" disabled={isImporting}>
-                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                Restore from Backup
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Cloud Sync */}
         <Card>
           <CardHeader className="pb-4">
@@ -589,8 +535,8 @@ export function SettingsManagement() {
                   <Printer className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Network Printer</CardTitle>
-                  <CardDescription>Configure RAW TCP printer (LAN/WiFi)</CardDescription>
+                  <CardTitle className="text-lg">{t('admin.settings.printer')}</CardTitle>
+                  <CardDescription>{t('admin.settings.printerDesc')}</CardDescription>
                 </div>
               </div>
               <Button onClick={savePrinterSettings} disabled={savingPrinter} size="sm" className="gap-2">
@@ -601,16 +547,16 @@ export function SettingsManagement() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <Label className="text-sm font-medium">Enable Printer</Label>
+              <Label className="text-sm font-medium">{t('admin.settings.printerEnabled')}</Label>
               <Switch checked={printerLan.enabled} onCheckedChange={(checked) => setPrinterLan(prev => ({ ...prev, enabled: checked }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Printer IP Address</Label>
+                <Label className="text-xs">{t('admin.settings.printerHost')}</Label>
                 <Input value={printerLan.host} onChange={(e) => setPrinterLan(prev => ({ ...prev, host: e.target.value }))} placeholder="e.g. 192.168.1.100" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Port</Label>
+                <Label className="text-xs">{t('admin.settings.printerPort')}</Label>
                 <Input type="number" value={printerLan.port} onChange={(e) => setPrinterLan(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))} placeholder="9100" />
               </div>
             </div>
@@ -689,6 +635,59 @@ export function SettingsManagement() {
           </CardContent>
         </Card>
 
+        {/* Data Migration */}
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">{t('admin.settings.migration')}</CardTitle>
+                <CardDescription>{t('admin.settings.migrationDesc')}</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                variant="outline"
+                className="flex-col h-auto py-4 gap-2"
+                onClick={() => handleExport('menu')}
+                disabled={!!isExporting}
+              >
+                {isExporting === 'menu' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                <div className="text-xs font-semibold">{t('admin.settings.migrationMenu')}</div>
+                <div className="text-[10px] text-muted-foreground font-normal">{t('admin.settings.migrationMenuDesc')}</div>
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-col h-auto py-4 gap-2"
+                onClick={() => handleExport('full')}
+                disabled={!!isExporting}
+              >
+                {isExporting === 'full' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5 text-orange-500" />}
+                <div className="text-xs font-semibold">{t('admin.settings.migrationFull')}</div>
+                <div className="text-[10px] text-muted-foreground font-normal">{t('admin.settings.migrationFullDesc')}</div>
+              </Button>
+            </div>
+
+            <div className="relative">
+              <input
+                type="file"
+                accept=".json"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={onImportFileChange}
+                disabled={isImporting}
+              />
+              <Button variant="secondary" className="w-full gap-2" disabled={isImporting}>
+                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {t('admin.settings.migrationRestore')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* System Diagnostics */}
         {systemCompatibility.provider === 'native' && (
           <Card>
@@ -697,8 +696,8 @@ export function SettingsManagement() {
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Activity className="w-5 h-5 text-primary" /></div>
                   <div>
-                    <CardTitle className="text-lg">System Diagnostics</CardTitle>
-                    <CardDescription>Native background tasks and health status</CardDescription>
+                    <CardTitle className="text-lg">{t('admin.settings.diagnostics')}</CardTitle>
+                    <CardDescription>{t('admin.settings.diagnosticsDesc')}</CardDescription>
                   </div>
                 </div>
                 <Button onClick={refreshRuntimeStatus} disabled={isRefreshingStatus} size="sm" variant="ghost">
@@ -711,25 +710,25 @@ export function SettingsManagement() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 border rounded-lg bg-muted/30">
-                      <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">Print Queue</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">{t('admin.settings.diagnosticsPrintQueue')}</p>
                       <div className="text-sm space-y-1">
-                        <div className="flex justify-between"><span>Pending</span><span>{(runtimeStatus.printQueue?.pending_jobs || 0) + (runtimeStatus.printQueue?.retrying_jobs || 0)}</span></div>
-                        <div className="flex justify-between"><span>Dead Letter</span><span className="text-destructive font-bold">{runtimeStatus.printQueue?.dead_letter_jobs || 0}</span></div>
+                        <div className="flex justify-between"><span>{t('admin.settings.diagnosticsPending')}</span><span>{(runtimeStatus.printQueue?.pending_jobs || 0) + (runtimeStatus.printQueue?.retrying_jobs || 0)}</span></div>
+                        <div className="flex justify-between"><span>{t('admin.settings.diagnosticsDeadLetter')}</span><span className="text-destructive font-bold">{runtimeStatus.printQueue?.dead_letter_jobs || 0}</span></div>
                       </div>
                     </div>
                     <div className="p-3 border rounded-lg bg-muted/30">
-                      <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">Actions</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">{t('admin.settings.diagnosticsActions')}</p>
                       <div className="text-sm space-y-1">
-                        <div className="flex justify-between"><span>Pending</span><span>{(runtimeStatus.pendingActions?.pending_actions || 0) + (runtimeStatus.pendingActions?.retrying_actions || 0)}</span></div>
-                        <div className="flex justify-between"><span>Dead Letter</span><span className="text-destructive font-bold">{runtimeStatus.pendingActions?.dead_letter_actions || 0}</span></div>
+                        <div className="flex justify-between"><span>{t('admin.settings.diagnosticsPending')}</span><span>{(runtimeStatus.pendingActions?.pending_actions || 0) + (runtimeStatus.pendingActions?.retrying_actions || 0)}</span></div>
+                        <div className="flex justify-between"><span>{t('admin.settings.diagnosticsDeadLetter')}</span><span className="text-destructive font-bold">{runtimeStatus.pendingActions?.dead_letter_actions || 0}</span></div>
                       </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={showDeadLetters} variant="outline" size="sm" className="flex-1 gap-2"><AlertTriangle className="w-4 h-4 text-warning" />Details</Button>
-                    <Button onClick={purgeDeadLetters} variant="outline" size="sm" className="flex-1 gap-2 text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" />Purge All</Button>
+                    <Button onClick={showDeadLetters} variant="outline" size="sm" className="flex-1 gap-2"><AlertTriangle className="w-4 h-4 text-warning" />{t('admin.settings.diagnosticsDetails')}</Button>
+                    <Button onClick={purgeDeadLetters} variant="outline" size="sm" className="flex-1 gap-2 text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" />{t('admin.settings.diagnosticsPurge')}</Button>
                   </div>
-                  <div className="text-[10px] text-muted-foreground text-center">Last updated: {runtimeStatus.updatedAt}</div>
+                  <div className="text-[10px] text-muted-foreground text-center">{t('admin.settings.diagnosticsLastUpdated').replace('{{time}}', runtimeStatus.updatedAt)}</div>
                 </div>
               )}
             </CardContent>
@@ -740,11 +739,11 @@ export function SettingsManagement() {
       <Dialog open={isShowingDeadLetters} onOpenChange={setIsShowingDeadLetters}>
         <DialogContent className="admin-crud-dialog sm:max-w-2xl">
           <div className="flex min-h-0 flex-1 flex-col p-6">
-            <h2 className="text-lg font-semibold">Dead Letter Details</h2>
+            <h2 className="text-lg font-semibold">{t('admin.settings.diagnosticsDeadLetterDetails')}</h2>
             <div className="admin-crud-dialog-body mt-4 space-y-4">
               {deadLetterDetails?.print_jobs.map((job: any) => (
                 <div key={job.id} className="p-3 border rounded text-xs">
-                  <div className="font-bold">Print Job: {job.order_id}</div>
+                  <div className="font-bold">{t('admin.settings.diagnosticsPrintQueue')}: {job.order_id}</div>
                   <div className="text-destructive mt-1">{job.last_error}</div>
                 </div>
               ))}
@@ -759,7 +758,7 @@ export function SettingsManagement() {
               ))}
             </div>
             <div className="admin-crud-dialog-footer mt-6 flex justify-end gap-2">
-              <Button onClick={() => setIsShowingDeadLetters(false)} variant="outline">Close</Button>
+              <Button onClick={() => setIsShowingDeadLetters(false)} variant="outline">{t('common.cancel')}</Button>
             </div>
           </div>
         </DialogContent>
@@ -772,17 +771,15 @@ export function SettingsManagement() {
               <AlertTriangle className="w-8 h-8 text-destructive" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-xl font-bold">Destructive Import</h3>
-              <p className="text-sm text-muted-foreground">
-                You are about to perform a full system restoration. This will <strong>erase all current data</strong> including staff, settings, and orders.
-              </p>
+              <h3 className="text-xl font-bold">{t('admin.settings.migrationDestructive')}</h3>
+              <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: t('admin.settings.migrationDestructiveDesc') }} />
               <p className="text-xs font-medium text-destructive">
-                This action cannot be undone. The app will reboot after completion.
+                {t('admin.settings.migrationDestructiveWarning')}
               </p>
             </div>
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowImportConfirm(false)}>Cancel</Button>
-              <Button variant="destructive" className="flex-1" onClick={confirmImport}>Confirm & Restore</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setShowImportConfirm(false)}>{t('common.cancel')}</Button>
+              <Button variant="destructive" className="flex-1" onClick={confirmImport}>{t('admin.settings.migrationConfirmRestore')}</Button>
             </div>
           </div>
         </DialogContent>

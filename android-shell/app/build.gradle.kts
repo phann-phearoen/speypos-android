@@ -7,7 +7,7 @@ plugins {
 
 val repoRoot = rootProject.projectDir.parentFile
 val frontendDistDir = File(repoRoot, "speypos-pwa/dist")
-val generatedWebAssetsDir = layout.buildDirectory.dir("generated/web-assets/main/assets")
+val assetsDir = layout.projectDirectory.dir("src/main/assets/web")
 val generatedLauncherIconsDir = layout.buildDirectory.dir("generated/launcher-icons")
 
 android {
@@ -45,7 +45,6 @@ android {
     viewBinding = true
   }
 
-  sourceSets.getByName("main").assets.srcDir(generatedWebAssetsDir)
   sourceSets.getByName("main").res.srcDir(generatedLauncherIconsDir)
 }
 
@@ -65,7 +64,7 @@ val buildFrontendForAndroid = tasks.register<Exec>("buildFrontendForAndroid") {
 val syncWebAssets = tasks.register<Copy>("syncWebAssets") {
   dependsOn(buildFrontendForAndroid)
   from(frontendDistDir)
-  into(generatedWebAssetsDir)
+  into(assetsDir)
 }
 
 val syncLauncherIcons = tasks.register("syncLauncherIcons") {

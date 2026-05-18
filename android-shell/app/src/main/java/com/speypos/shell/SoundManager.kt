@@ -23,7 +23,7 @@ class SoundManager(context: Context) {
             "success" -> {
                 // Distinct Bell Ding / Success Chime
                 // TONE_CDMA_CONFIRM is a triple-beep harmonic chime
-                toneGenerator.startTone(ToneGenerator.TONE_CDMA_CONFIRM, 400)
+                toneGenerator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 500)
             }
             "warning" -> {
                 // NACK beep for deletions

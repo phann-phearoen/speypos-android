@@ -4,6 +4,7 @@ import type { MenuItem, Customization, CustomizationGroup, OrderItemTopping, Top
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
 import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
+import { triggerImpact } from '@/lib/feedback';
 // Toast removed - order panel provides visual feedback
 
 interface CustomizationPanelProps {
@@ -356,7 +357,10 @@ export function CustomizationPanel({
       {/* Header with Back button + Item name */}
       <div className="p-4 border-b border-border flex items-center gap-4">
         <button
-          onClick={onBack}
+          onClick={() => {
+            triggerImpact('light');
+            onBack();
+          }}
           className="pos-btn h-12 px-4 gap-2 bg-secondary text-secondary-foreground rounded-xl"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -391,7 +395,10 @@ export function CustomizationPanel({
                     return (
                       <button
                         key={option.id}
-                        onClick={() => handleSelect(group.name, option.id, group.type, group.required)}
+                        onClick={() => {
+                          triggerImpact('light');
+                          handleSelect(group.name, option.id, group.type, group.required);
+                        }}
                         className={`
                           pos-btn py-3 px-4 rounded-xl text-left transition-all
                           ${isSelected 
@@ -446,7 +453,10 @@ export function CustomizationPanel({
                           >
                             {/* Clickable header - always visible */}
                             <button
-                              onClick={() => handleToppingSelect(option.id, option)}
+                              onClick={() => {
+                                triggerImpact('light');
+                                handleToppingSelect(option.id, option);
+                              }}
                               className={`w-full p-3 text-left ${isSelected ? 'cursor-default' : ''}`}
                               disabled={isSelected}
                             >
@@ -464,7 +474,10 @@ export function CustomizationPanel({
                               <div className="px-3 pb-3 pt-1 border-t border-border/50 animate-fade-in">
                                 <div className="flex items-center justify-between gap-2">
                                   <button
-                                    onClick={() => handleToppingQuantityChange(option.id, -1, option)}
+                                    onClick={() => {
+                                      triggerImpact('light');
+                                      handleToppingQuantityChange(option.id, -1, option);
+                                    }}
                                     disabled={atMin}
                                     className={`pos-btn w-9 h-9 rounded-lg transition-all ${
                                       atMin 
@@ -480,7 +493,10 @@ export function CustomizationPanel({
                                   </span>
                                   
                                   <button
-                                    onClick={() => handleToppingQuantityChange(option.id, 1, option)}
+                                    onClick={() => {
+                                      triggerImpact('light');
+                                      handleToppingQuantityChange(option.id, 1, option);
+                                    }}
                                     disabled={atMax}
                                     className={`pos-btn w-9 h-9 rounded-lg transition-all ${
                                       atMax 
@@ -511,14 +527,20 @@ export function CustomizationPanel({
           {/* Quantity Controls */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setQuantity(q => Math.max(1, q - 1))}
+              onClick={() => {
+                triggerImpact('light');
+                setQuantity(q => Math.max(1, q - 1));
+              }}
               className="pos-btn w-12 h-12 rounded-lg bg-secondary text-secondary-foreground"
             >
               <Minus className="w-5 h-5" />
             </button>
             <span className="w-10 text-center text-xl font-semibold">{quantity}</span>
             <button
-              onClick={() => setQuantity(q => q + 1)}
+              onClick={() => {
+                triggerImpact('light');
+                setQuantity(q => q + 1);
+              }}
               className="pos-btn w-12 h-12 rounded-lg bg-secondary text-secondary-foreground"
             >
               <Plus className="w-5 h-5" />
@@ -527,7 +549,10 @@ export function CustomizationPanel({
 
           {/* Add/Update Button - takes remaining space */}
           <button
-            onClick={editMode ? handleConfirm : handleAdd}
+            onClick={() => {
+              triggerImpact('medium');
+              editMode ? handleConfirm() : handleAdd();
+            }}
             disabled={!isValid}
             className={`flex-1 pos-btn py-4 rounded-xl font-semibold text-lg shadow-md transition-all ${
               isValid 

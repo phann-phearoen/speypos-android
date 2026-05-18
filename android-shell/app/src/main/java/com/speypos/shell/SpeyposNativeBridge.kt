@@ -11,6 +11,8 @@ class SpeyposNativeBridge(
   private val configStore: NativeConfigStore,
   private val runtimeState: NativeRuntimeState,
   private val updateManager: UpdateManager,
+  private val vibrationManager: VibrationManager,
+  private val soundManager: SoundManager,
   private val scope: CoroutineScope
 ) {
   init {
@@ -47,6 +49,36 @@ class SpeyposNativeBridge(
       "{\"data\":{\"started\":true},\"error\":null}"
     } catch (e: Exception) {
       "{\"data\":null,\"error\":\"${e.message}\"}"
+    }
+  }
+
+  @JavascriptInterface
+  fun vibrateImpact(type: String): String {
+    return try {
+      vibrationManager.impact(type)
+      "{\"success\":true}"
+    } catch (e: Exception) {
+      "{\"success\":false,\"error\":\"${e.message}\"}"
+    }
+  }
+
+  @JavascriptInterface
+  fun vibrateNotification(type: String): String {
+    return try {
+      vibrationManager.notification(type)
+      "{\"success\":true}"
+    } catch (e: Exception) {
+      "{\"success\":false,\"error\":\"${e.message}\"}"
+    }
+  }
+
+  @JavascriptInterface
+  fun playSound(type: String): String {
+    return try {
+      soundManager.playSound(type)
+      "{\"success\":true}"
+    } catch (e: Exception) {
+      "{\"success\":false,\"error\":\"${e.message}\"}"
     }
   }
 

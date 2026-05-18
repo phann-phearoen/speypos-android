@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { StoreBrand } from '@/components/StoreBrand';
 import { useTranslation } from '@/lib/i18n';
 import { useDateTime } from '@/lib/datetime';
+import { triggerImpact } from '@/lib/feedback';
 import type { Shift, Staff } from '@/types/pos';
 
 interface HeaderProps {
@@ -60,7 +61,10 @@ export function Header({ currentShift, currentStaff, isConnected, isLoading, onC
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={onCloseShift}
+                onClick={() => {
+                  triggerImpact('light');
+                  onCloseShift?.();
+                }}
                 className="text-pos-header-foreground/70 hover:text-destructive hover:bg-destructive/10 gap-1.5"
               >
                 <LogOut className="w-4 h-4" />
@@ -87,7 +91,10 @@ export function Header({ currentShift, currentStaff, isConnected, isLoading, onC
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate('/admin/login')}
+          onClick={() => {
+            triggerImpact('light');
+            navigate('/admin/login');
+          }}
           className="text-pos-header-foreground hover:bg-pos-header-foreground/10"
         >
           <Settings className="w-5 h-5" />

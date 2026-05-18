@@ -10,6 +10,7 @@ import { useDisplaySession } from '@/hooks/useDisplaySession';
 import { useCurrency } from '@/lib/currency';
 import { getOrderCompatibilityProvider } from '@/lib/compatibility/order';
 import { useTranslation } from '@/lib/i18n';
+import { triggerSuccess, triggerImpact } from '@/lib/feedback';
 
 const orderCompatibility = getOrderCompatibilityProvider();
 
@@ -53,18 +54,26 @@ export default function CompletePage() {
   const state = location.state as LocationState | null;
 
   useEffect(() => {
+    // Trigger success feedback (Haptic + Sound)
+    // Small delay ensures the page transition is settled and bridge is ready
+    const soundTimer = setTimeout(() => {
+      console.log('CompletePage: Triggering success feedback via bridge');
+      triggerSuccess();
+    }, 250); // Increased delay for slower devices
+
     const animTimer = setTimeout(() => setShowContent(true), 100);
     idleTimerRef.current = setTimeout(() => {
       updateToIdle();
     }, 3000);
     setOrderId(completedOrderId);
     return () => {
+      clearTimeout(soundTimer);
       clearTimeout(animTimer);
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
     };
-  }, [updateToIdle]);
+  }, [completedOrderId, updateToIdle]);
 
   if (!state) {
     return <Navigate to={`/pos/order?shiftId=${shiftId}`} replace />;
@@ -73,6 +82,7 @@ export default function CompletePage() {
   const { total, received, change, voided } = state;
 
   const handleNewOrder = () => {
+    triggerImpact('light');
     updateToIdle();
     navigate(`/pos/order?shiftId=${shiftId}`);
   };
@@ -80,6 +90,7 @@ export default function CompletePage() {
   const handlePrintReceipt = async () => {
     if (orderId) {
       try {
+        triggerImpact('light');
         setIsPrinting(true);
         await orderCompatibility.printReceipt(orderId, 'reprint');
       } catch (error) {

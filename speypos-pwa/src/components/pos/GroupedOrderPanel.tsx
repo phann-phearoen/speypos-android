@@ -4,6 +4,7 @@ import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
 import { groupOrderItems, type GroupedOrderItem, type VariationGroup } from '@/lib/orderGrouping';
 import { useMemo } from 'react';
+import { triggerImpact, triggerNotification } from '@/lib/feedback';
 
 interface GroupedOrderPanelProps {
   items: OrderItem[];
@@ -46,7 +47,10 @@ export function GroupedOrderPanel({
           </h2>
           {items.length > 0 && (
             <button
-              onClick={onClearOrder}
+              onClick={() => {
+                triggerNotification('warning');
+                onClearOrder();
+              }}
               className="pos-btn px-3 text-destructive bg-destructive/10 rounded-lg"
             >
               {t('order.clear')}
@@ -95,7 +99,10 @@ export function GroupedOrderPanel({
 
         {/* Checkout Button */}
         <button
-          onClick={onCheckout}
+          onClick={() => {
+            triggerImpact('medium');
+            onCheckout();
+          }}
           disabled={items.length === 0}
           className={`
             w-full pos-btn py-4 rounded-xl font-semibold text-lg gap-2
@@ -165,7 +172,10 @@ function GroupedItemCard({
         <div className="flex items-center gap-2">
           <span className="text-accent font-bold">{formatPrice(group.totalSubtotal)}</span>
           <button
-            onClick={() => onRemoveBaseItem(group.menuItemId)}
+            onClick={() => {
+              triggerNotification('warning');
+              onRemoveBaseItem(group.menuItemId);
+            }}
             className="pos-btn w-7 h-7 rounded text-destructive hover:bg-destructive/10"
             title="Remove all"
           >
@@ -255,14 +265,20 @@ function VariationControls({
       {/* Quantity */}
       <div className="flex items-center gap-1">
         <button
-          onClick={() => onUpdateQuantity(-1)}
+          onClick={() => {
+            triggerImpact('light');
+            onUpdateQuantity(-1);
+          }}
           className="pos-btn--small w-9 h-9 rounded bg-secondary text-secondary-foreground"
         >
           <Minus className="w-3.5 h-3.5" />
         </button>
         <span className="w-7 text-center font-bold text-sm">{variation.totalQuantity}</span>
         <button
-          onClick={() => onUpdateQuantity(1)}
+          onClick={() => {
+            triggerImpact('light');
+            onUpdateQuantity(1);
+          }}
           className="pos-btn--small w-9 h-9 rounded bg-secondary text-secondary-foreground"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -276,13 +292,19 @@ function VariationControls({
 
       {/* Actions */}
       <button
-        onClick={onEdit}
+        onClick={() => {
+          triggerImpact('light');
+          onEdit();
+        }}
         className="pos-btn--small w-8 h-8 rounded text-muted-foreground hover:bg-muted"
       >
         <Pencil className="w-3.5 h-3.5" />
       </button>
       <button
-        onClick={onRemove}
+        onClick={() => {
+          triggerNotification('warning');
+          onRemove();
+        }}
         className="pos-btn--small w-8 h-8 rounded text-destructive hover:bg-destructive/10"
       >
         <Trash2 className="w-3.5 h-3.5" />

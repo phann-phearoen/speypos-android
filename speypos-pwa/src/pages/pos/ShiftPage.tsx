@@ -12,6 +12,7 @@ import { StoreBrand } from '@/components/StoreBrand';
 import { DayClosePreviewModal } from '@/components/pos/DayClosePreviewModal';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { triggerImpact, triggerNotification, triggerSuccess } from '@/lib/feedback';
 import type { Staff, Shift } from '@/types/pos';
 
 const shiftCompatibility = getShiftCompatibilityProvider();
@@ -174,7 +175,10 @@ export default function ShiftPage() {
                     variant="outline" 
                     size="sm" 
                     className="mt-2"
-                    onClick={handleManageShifts}
+                    onClick={() => {
+                      triggerImpact('light');
+                      handleManageShifts();
+                    }}
                   >
                     {t('shift.manageShifts')}
                   </Button>
@@ -207,7 +211,10 @@ export default function ShiftPage() {
                   </p>
                 </div>
                 <button
-                  onClick={handleReload}
+                  onClick={() => {
+                    triggerImpact('light');
+                    handleReload();
+                  }}
                   className="pos-btn gap-2 px-6 py-3 rounded-xl font-medium bg-primary text-primary-foreground"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -251,7 +258,10 @@ export default function ShiftPage() {
                   {activeStaff.map((staff) => (
                     <button
                       key={staff.id}
-                      onClick={() => setSelectedStaff(staff)}
+                      onClick={() => {
+                        triggerImpact('light');
+                        setSelectedStaff(staff);
+                      }}
                       className={`
                         pos-btn flex-col p-4 gap-1 rounded-xl border-2 transition-all
                         ${
@@ -283,7 +293,13 @@ export default function ShiftPage() {
                     <span>{error}</span>
                   </div>
 
-                  <button onClick={() => navigate('/admin/order-history')} className="pos-btn gap-2 px-4 py-2 rounded-xl font-medium bg-secondary text-secondary-foreground mb-4 w-full">
+                  <button
+                    onClick={() => {
+                      triggerImpact('light');
+                      navigate('/admin/order-history');
+                    }}
+                    className="pos-btn gap-2 px-4 py-2 rounded-xl font-medium bg-secondary text-secondary-foreground mb-4 w-full"
+                  >
                     <ArrowRight className="w-4 h-4 inline-block mr-1" />
                     {t('shift.manageShifts')}
                   </button>
@@ -294,7 +310,10 @@ export default function ShiftPage() {
               {!checkingActiveShift && !loading && activeStaff.length > 0 && !error && (
                 <>
                   <button
-                    onClick={handleOpenShift}
+                    onClick={() => {
+                      triggerSuccess();
+                      handleOpenShift();
+                    }}
                     disabled={!selectedStaff || openingShift}
                     className={`
                       w-full pos-btn gap-3 py-4 rounded-xl font-semibold text-lg
@@ -323,7 +342,10 @@ export default function ShiftPage() {
                     <Button
                       variant="outline"
                       className="w-full gap-2"
-                      onClick={() => setShowDayCloseModal(true)}
+                      onClick={() => {
+                        triggerNotification('warning');
+                        setShowDayCloseModal(true);
+                      }}
                     >
                       <CalendarCheck className="w-4 h-4" />
                       {t('shift.closeDay')}

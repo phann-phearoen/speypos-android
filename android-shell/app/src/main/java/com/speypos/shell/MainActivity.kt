@@ -38,7 +38,9 @@ class MainActivity : AppCompatActivity() {
   private val runtimeState = NativeRuntimeState()
   private val configStore by lazy { NativeConfigStore(applicationContext) }
   private val updateManager by lazy { UpdateManager(applicationContext, configStore) }
-  private val nativeBridge by lazy { SpeyposNativeBridge(configStore, runtimeState, updateManager, lifecycleScope) }
+  private val vibrationManager by lazy { VibrationManager(applicationContext) }
+  private val soundManager by lazy { SoundManager(applicationContext) }
+  private val nativeBridge by lazy { SpeyposNativeBridge(configStore, runtimeState, updateManager, vibrationManager, soundManager, lifecycleScope) }
   
   private var filePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
   private val fileChooserLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
@@ -139,6 +141,7 @@ class MainActivity : AppCompatActivity() {
   override fun onDestroy() {
     DiagnosticsManager.addBreadcrumb("App Destroyed")
     loadTimeoutRunnable?.let(mainHandler::removeCallbacks)
+    soundManager.release()
     binding.webView.destroy()
     super.onDestroy()
   }

@@ -22,6 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { triggerImpact, triggerNotification } from '@/lib/feedback';
 import type { OrderItem } from '@/types/pos';
 
 interface LocationState {
@@ -119,6 +120,7 @@ export default function PaymentPage() {
   }, [receivedAmountCents, change, paymentType, orderTotal, updateToPaying]);
 
   const handleNumpadPress = (value: string) => {
+    triggerImpact('light');
     if (value === 'clear') {
       setInputValue('');
     } else if (value === 'backspace') {
@@ -251,6 +253,7 @@ export default function PaymentPage() {
   };
 
   const handleCancel = () => {
+    triggerNotification('warning');
     navigate(`/pos/order?shiftId=${shiftId}`, {
       state: { orderItems, orderTotal, customerType },
     });
@@ -284,7 +287,10 @@ export default function PaymentPage() {
             {/* Payment Type Tabs */}
             <div className="flex bg-muted rounded-lg p-1 mb-8">
               <button
-                onClick={() => setPaymentType('cash')}
+                onClick={() => {
+                  triggerImpact('light');
+                  setPaymentType('cash');
+                }}
                 className={`flex-1 py-3 px-4 rounded-md font-medium transition-all ${
                   paymentType === 'cash'
                     ? 'bg-background text-foreground shadow-sm'
@@ -294,7 +300,10 @@ export default function PaymentPage() {
                 {t('payment.cash')}
               </button>
               <button
-                onClick={() => setPaymentType('qr')}
+                onClick={() => {
+                  triggerImpact('light');
+                  setPaymentType('qr');
+                }}
                 className={`flex-1 py-3 px-4 rounded-md font-medium transition-all ${
                   paymentType === 'qr'
                     ? 'bg-background text-foreground shadow-sm'
@@ -320,7 +329,10 @@ export default function PaymentPage() {
                   {quickAmounts.map((amount) => (
                     <button
                       key={amount}
-                      onClick={() => setInputValue(toDisplayValue(amount))}
+                      onClick={() => {
+                        triggerImpact('light');
+                        setInputValue(toDisplayValue(amount));
+                      }}
                       className="pos-btn py-4 rounded-xl bg-secondary text-secondary-foreground font-semibold text-lg"
                     >
                       {format(amount)}
@@ -330,7 +342,10 @@ export default function PaymentPage() {
 
                 {/* Exact Amount Button */}
                 <button
-                  onClick={() => setInputValue(toDisplayValue(orderTotal))}
+                  onClick={() => {
+                    triggerImpact('light');
+                    setInputValue(toDisplayValue(orderTotal));
+                  }}
                   className="w-full pos-btn py-4 rounded-xl bg-muted text-muted-foreground font-medium mb-4"
                 >
                   {t('payment.exactAmount')}
@@ -343,7 +358,10 @@ export default function PaymentPage() {
 
             {/* Void Order Button - at bottom of left panel */}
             <button
-              onClick={() => setVoidDialogOpen(true)}
+              onClick={() => {
+                triggerNotification('warning');
+                setVoidDialogOpen(true);
+              }}
               className="w-full pos-btn py-3 rounded-xl border-2 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium gap-2 mt-4"
             >
               <Ban className="w-4 h-4" />
@@ -415,7 +433,10 @@ export default function PaymentPage() {
           {/* Fixed Footer */}
           <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-border">
             <button
-              onClick={() => handleNumpadPress('clear')}
+              onClick={() => {
+                triggerImpact('light');
+                handleNumpadPress('clear');
+              }}
               disabled={paymentType !== 'cash'}
               className={`pos-btn py-4 rounded-xl font-semibold ${
                 paymentType === 'cash'
@@ -427,7 +448,12 @@ export default function PaymentPage() {
             </button>
 
             <button
-              onClick={handleConfirmPayment}
+              onClick={() => {
+                if (canComplete && !processing) {
+                  triggerImpact('medium');
+                  handleConfirmPayment();
+                }
+              }}
               disabled={!canComplete || processing}
               className={`pos-btn py-4 rounded-xl font-semibold gap-2 ${
                 canComplete && !processing
@@ -493,12 +519,22 @@ export default function PaymentPage() {
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setVoidDialogOpen(false)} disabled={voiding}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                triggerImpact('light');
+                setVoidDialogOpen(false);
+              }}
+              disabled={voiding}
+            >
               {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
-              onClick={handleVoidOrder}
+              onClick={() => {
+                triggerNotification('warning');
+                handleVoidOrder();
+              }}
               disabled={voiding}
               className="gap-2"
             >

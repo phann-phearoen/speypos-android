@@ -1,5 +1,6 @@
 import { Coffee, Cake, IceCream, Soup, Package } from 'lucide-react';
 import type { MenuCategory } from '@/types/pos';
+import { triggerImpact } from '@/lib/feedback';
 
 interface CategoryBarProps {
   categories: MenuCategory[];
@@ -50,7 +51,10 @@ export function CategoryBar({
         {categories.map(category => (
           <button
             key={category.id}
-            onClick={() => onSelectCategory(category.id)}
+            onClick={() => {
+              triggerImpact('light');
+              onSelectCategory(category.id);
+            }}
             className={`category-tab-horizontal ${selectedCategory === category.id ? 'active' : ''}`}
           >
             {getIcon(category.name)}

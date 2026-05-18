@@ -3,6 +3,7 @@ import type { MenuItem } from '@/types/pos';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
 import { resolveImageUrl } from '@/lib/api';
+import { triggerImpact } from '@/lib/feedback';
 
 interface MenuGridProps {
   items: MenuItem[];
@@ -45,7 +46,10 @@ export function MenuGrid({ items, onSelectItem, loading }: MenuGridProps) {
       {items.map(item => (
         <button
           key={item.id}
-          onClick={() => onSelectItem(item)}
+          onClick={() => {
+            triggerImpact('light');
+            onSelectItem(item);
+          }}
           className="menu-item-card group"
         >
           {/* Image */}

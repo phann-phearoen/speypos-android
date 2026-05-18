@@ -972,4 +972,28 @@ class SpeyposNativeBridge(
         .toString()
     }
   }
+
+  @JavascriptInterface
+  fun getUpdateSettings(): String {
+    return JSONObject()
+      .put("data", configStore.readUpdateSource())
+      .put("error", JSONObject.NULL)
+      .toString()
+  }
+
+  @JavascriptInterface
+  fun updateUpdateSettings(payloadJson: String): String {
+    return try {
+      val result = configStore.updateUpdateSource(JSONObject(payloadJson))
+      JSONObject()
+        .put("data", result)
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Failed to update source")
+        .toString()
+    }
+  }
 }

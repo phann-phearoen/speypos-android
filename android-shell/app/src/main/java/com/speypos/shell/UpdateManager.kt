@@ -28,16 +28,20 @@ class UpdateManager(private val context: Context, private val configStore: Nativ
     suspend fun checkForUpdates(): JSONObject? {
         return withContext(Dispatchers.IO) {
             try {
-                val settings = configStore.readCloudSyncSettings()
+                val settings = configStore.readUpdateSource()
                 val baseUrl = settings.optString("base_url").trim().removeSuffix("/")
-                if (baseUrl.isEmpty()) return@withContext null
+                if (baseUrl.isEmpty()) {
+                    Log.i(TAG, "Update check skipped: No source URL configured")
+                    return@withContext null
+                }
 
-                val apiKey = settings.optString("api_key")
-                val url = URL("$baseUrl/api/v1/system/update-check")
+                val secretKey = settings.optString("api_key")
+                val url = URL(baseUrl)
                 
+                Log.d(TAG, "Checking for updates at: $baseUrl")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
-                connection.setRequestProperty("X-Api-Key", apiKey)
+                connection.setRequestProperty("X-Spey-Update-Secret", secretKey)
                 connection.connectTimeout = 10000
                 connection.readTimeout = 10000
 
@@ -45,6 +49,10 @@ class UpdateManager(private val context: Context, private val configStore: Nativ
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     val json = JSONObject(response)
                     lastMetadata = json
+                    
+                    // Update last check timestamp
+                    configStore.updateUpdateSource(JSONObject().put("last_check_at", System.currentTimeMillis()))
+
                     json
                 } else {
                     Log.w(TAG, "Update check failed with code: ${connection.responseCode}")

@@ -43,6 +43,7 @@ class NativeConfigStore(private val context: Context) {
     private const val PREF_NATIVE_PRINT_QUEUE_JSON = "native.print.queue.json"
     private const val PREF_NATIVE_PENDING_ACTIONS_JSON = "native.pending.actions.json"
     private const val PREF_NATIVE_SYNC_QUEUE_JSON = "native.sync.queue.json"
+    private const val PREF_NATIVE_UPDATE_SOURCE_JSON = "native.update.source.json"
     private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
 
     private val MENU_RELATED_KEYS = listOf(
@@ -112,6 +113,11 @@ class NativeConfigStore(private val context: Context) {
         editor.putString(key, JSONArray().toString())
         changed = true
       }
+    }
+
+    if (!preferences.contains(PREF_NATIVE_UPDATE_SOURCE_JSON)) {
+      editor.putString(PREF_NATIVE_UPDATE_SOURCE_JSON, buildDefaultUpdateSource().toString())
+      changed = true
     }
 
     if (!preferences.contains(PREF_NATIVE_STORE_JSON)) {
@@ -2214,6 +2220,38 @@ class NativeConfigStore(private val context: Context) {
 
   fun resetAllData() {
     getPreferences().edit().clear().apply()
+  }
+
+  fun readUpdateSource(): JSONObject {
+    val preferences = getPreferences()
+    val raw = preferences.getString(PREF_NATIVE_UPDATE_SOURCE_JSON, null) ?: return buildDefaultUpdateSource()
+
+    return try {
+      JSONObject(raw)
+    } catch (_: Exception) {
+      val fallback = buildDefaultUpdateSource()
+      preferences.edit().putString(PREF_NATIVE_UPDATE_SOURCE_JSON, fallback.toString()).apply()
+      fallback
+    }
+  }
+
+  fun updateUpdateSource(payload: JSONObject): JSONObject {
+    val current = readUpdateSource()
+    val merged = JSONObject(current.toString())
+    val keys = payload.keys()
+    while (keys.hasNext()) {
+      val key = keys.next()
+      merged.put(key, payload.get(key))
+    }
+    getPreferences().edit().putString(PREF_NATIVE_UPDATE_SOURCE_JSON, merged.toString()).apply()
+    return merged
+  }
+
+  private fun buildDefaultUpdateSource(): JSONObject {
+    return JSONObject()
+      .put("base_url", "")
+      .put("api_key", "")
+      .put("last_check_at", JSONObject.NULL)
   }
 
   fun saveToDownloads(jsonString: String, filename: String): Boolean {

@@ -87,10 +87,81 @@ export function SettingsManagement() {
   const [isPurging, setIsPurging] = useState(false);
   const [isExportingLogs, setIsExportingLogs] = useState(false);
 
+  // Software Update state
+  const [updateSource, setUpdateSource] = useState({ base_url: '', api_key: '', last_check_at: null as number | null });
+  const [savingUpdate, setSavingUpdate] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateMetadata, setUpdateMetadata] = useState<any>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
+
   useEffect(() => {
     loadSettings();
     refreshRuntimeStatus();
+    loadUpdateSettings();
   }, []);
+
+  const loadUpdateSettings = async () => {
+    if (systemCompatibility.provider !== 'native') return;
+    try {
+      const { data } = await callNativeBridge<any>('getUpdateSettings');
+      if (data) setUpdateSource(data);
+
+      const meta = await callNativeBridge<any>('getUpdateMetadata');
+      if (meta.data) setUpdateMetadata(meta.data);
+    } catch (err) {
+      console.error('Failed to load update settings:', err);
+    }
+  };
+
+  const saveUpdateSettings = async () => {
+    setSavingUpdate(true);
+    try {
+      const { error } = await callNativeBridge<any>('updateUpdateSettings', JSON.stringify(updateSource));
+      if (error) {
+        toast({ title: t('toast.error'), description: error, variant: 'destructive' });
+      } else {
+        toast({ title: t('admin.settings.saved'), description: 'Update configuration saved' });
+      }
+    } finally {
+      setSavingUpdate(false);
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      await callNativeBridge<any>('checkForUpdates');
+      // Polling for metadata update after trigger
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        const { data } = await callNativeBridge<any>('getUpdateMetadata');
+        if (data || attempts > 10) {
+          setUpdateMetadata(data);
+          clearInterval(poll);
+          setIsCheckingUpdate(false);
+          if (data) {
+             toast({ title: 'Update Check', description: `Version ${data.versionName} available` });
+          } else {
+             toast({ title: 'Update Check', description: 'System is up to date' });
+          }
+        }
+        attempts++;
+      }, 1000);
+    } catch (err) {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!updateMetadata?.url) return;
+    setIsInstalling(true);
+    try {
+      await callNativeBridge<any>('performUpdate', updateMetadata.url);
+      toast({ title: 'Downloading', description: 'Update installation started' });
+    } finally {
+      setIsInstalling(false);
+    }
+  };
 
   const refreshRuntimeStatus = async () => {
     if (systemCompatibility.provider !== 'native') return;
@@ -758,6 +829,67 @@ export function SettingsManagement() {
                   <div className="text-[10px] text-muted-foreground text-center">{t('admin.settings.diagnosticsLastUpdated').replace('{{time}}', runtimeStatus.updatedAt)}</div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Software Update */}
+        {systemCompatibility.provider === 'native' && (
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Download className="w-5 h-5 text-primary" /></div>
+                  <div>
+                    <CardTitle className="text-lg">Software Update</CardTitle>
+                    <CardDescription>Configure update source and check for new versions</CardDescription>
+                  </div>
+                </div>
+                <Button onClick={saveUpdateSettings} disabled={savingUpdate} size="sm" className="gap-2">
+                  {savingUpdate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {t('admin.settings.save')}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Update Gatekeeper URL (Lambda)</Label>
+                  <Input value={updateSource.base_url} onChange={(e) => setUpdateSource(prev => ({ ...prev, base_url: e.target.value }))} placeholder="https://..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Update Secret Key</Label>
+                  <Input type="password" value={updateSource.api_key} onChange={(e) => setUpdateSource(prev => ({ ...prev, api_key: e.target.value }))} placeholder="Secret header value" />
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-3">
+                <Button variant="outline" onClick={handleCheckUpdate} disabled={isCheckingUpdate} className="w-full gap-2">
+                  {isCheckingUpdate ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Check for Updates
+                </Button>
+
+                {updateMetadata && (
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <p className="font-semibold text-primary">Update Available: v{updateMetadata.versionName}</p>
+                        <p className="text-xs text-muted-foreground">Build {updateMetadata.versionCode}</p>
+                      </div>
+                      <Button onClick={handleInstallUpdate} disabled={isInstalling} size="sm" className="gap-2">
+                        {isInstalling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        Install Now
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {updateSource.last_check_at && (
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Last checked: {new Date(updateSource.last_check_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

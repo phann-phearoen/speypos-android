@@ -46,7 +46,7 @@ export function SettingsManagement() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { refetchSettings } = useSettings();
-  const { setIsRebooting } = useSetup();
+  const { setIsRebooting, needsRestart, setNeedsRestart } = useSetup();
   const [loading, setLoading] = useState(true);
   const [savingReceipt, setSavingReceipt] = useState(false);
   const [savingTelegram, setSavingTelegram] = useState(false);
@@ -76,8 +76,6 @@ export function SettingsManagement() {
   const [telegramIntents, setTelegramIntents] = useState<TelegramIntent[]>([]);
   const [originalIntents, setOriginalIntents] = useState<TelegramIntent[]>([]);
   const [intentErrors, setIntentErrors] = useState<Record<string, string>>({});
-  const [needsReboot, setNeedsReboot] = useState(false);
-  const [rebootStatus, setRebootStatus] = useState<'idle' | 'sending' | 'waiting' | 'success' | 'error'>('idle');
 
   // Diagnostics state
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
@@ -352,7 +350,7 @@ export function SettingsManagement() {
       if (!error) {
         await refetchSettings();
         toast({ title: t('admin.settings.saved'), description: t('admin.settings.telegramUpdated') });
-        setNeedsReboot(true);
+        setNeedsRestart(true);
       }
     } catch (err) {
       toast({ title: t('toast.error'), description: t('toast.failedToSave'), variant: 'destructive' });
@@ -396,7 +394,7 @@ export function SettingsManagement() {
           if (!error) {
             await refetchSettings();
             toast({ title: t('admin.settings.saved'), description: t('admin.settings.cloudSyncUpdated') });
-            setNeedsReboot(true);
+            setNeedsRestart(true);
           }
           setSavingCloudSync(false);
           return;
@@ -412,7 +410,7 @@ export function SettingsManagement() {
       if (!error) {
         await refetchSettings();
         toast({ title: t('admin.settings.saved'), description: t('admin.settings.cloudSyncUpdated') });
-        setNeedsReboot(true);
+        setNeedsRestart(true);
       }
     } catch (err) {
       toast({ title: t('toast.error'), description: 'Failed to save cloud settings', variant: 'destructive' });
@@ -451,14 +449,12 @@ export function SettingsManagement() {
 
   const handleReboot = useCallback(async () => {
     setIsRebooting(true);
-    setRebootStatus('sending');
     try { await systemCompatibility.reboot(); } catch {}
-    setRebootStatus('waiting');
     const poll = async () => {
       try {
         const response = await healthApi.check();
         if (response.data) {
-          setRebootStatus('success');
+          setNeedsRestart(false);
           setIsRebooting(false);
           window.location.reload();
           return;
@@ -467,7 +463,7 @@ export function SettingsManagement() {
       setTimeout(poll, 500);
     };
     setTimeout(poll, 500);
-  }, [setIsRebooting]);
+  }, [setIsRebooting, setNeedsRestart]);
 
   const updateReceiptCopyCount = (variant: string, count: number) => {
     const validCount = Math.max(0, Math.floor(count));
@@ -687,12 +683,6 @@ export function SettingsManagement() {
                 <Input value={intent.chat_id || ''} onChange={(e) => updateIntentChatId(intent.intent, e.target.value)} disabled={!intent.enabled} placeholder="Chat ID" />
               </div>
             ))}
-            {needsReboot && (
-              <div className="mt-4 p-3 bg-warning/10 border border-warning/50 rounded-lg flex items-center justify-between gap-3">
-                <span className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-warning" />{t('admin.settings.rebootRequired')}</span>
-                <Button onClick={handleReboot} variant="outline" size="sm" disabled={rebootStatus === 'waiting' || rebootStatus === 'sending'}>{t('admin.settings.reload')}</Button>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -893,6 +883,37 @@ export function SettingsManagement() {
             </CardContent>
           </Card>
         )}
+
+        {/* System Control */}
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">System Control</CardTitle>
+                <CardDescription>Manage application lifecycle and manual restarts</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 bg-background border rounded-lg">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Restart Application</p>
+                <p className="text-xs text-muted-foreground">Reload the POS shell to apply all pending changes.</p>
+              </div>
+              <Button
+                onClick={handleReboot}
+                variant="destructive"
+                className="gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                {t('admin.settings.reload')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={isShowingDeadLetters} onOpenChange={setIsShowingDeadLetters}>

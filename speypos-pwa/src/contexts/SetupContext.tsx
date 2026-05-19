@@ -8,7 +8,9 @@ interface SetupContextValue {
   isLoading: boolean;
   error: string | null;
   isRebooting: boolean;
+  needsRestart: boolean;
   setIsRebooting: (value: boolean) => void;
+  setNeedsRestart: (value: boolean) => void;
   completeSetup: () => void;
   retryCheck: () => void;
 }
@@ -21,6 +23,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRebooting, setIsRebooting] = useState(false);
+  const [needsRestart, setNeedsRestart] = useState(false);
 
   const checkSetupStatus = useCallback(async () => {
     setIsLoading(true);
@@ -68,7 +71,9 @@ export function SetupProvider({ children }: { children: ReactNode }) {
           isLoading,
           error,
           isRebooting,
+          needsRestart,
           setIsRebooting,
+          setNeedsRestart,
           completeSetup,
           retryCheck,
         }}
@@ -116,7 +121,9 @@ export function SetupProvider({ children }: { children: ReactNode }) {
         isLoading,
         error,
         isRebooting,
+        needsRestart,
         setIsRebooting,
+        setNeedsRestart,
         completeSetup,
         retryCheck,
       }}

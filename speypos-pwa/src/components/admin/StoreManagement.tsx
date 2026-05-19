@@ -34,7 +34,7 @@ export function StoreManagement() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { store: contextStore, refetchStore } = useSettings();
-  const { setIsRebooting } = useSetup();
+  const { setNeedsRestart } = useSetup();
   
   const [loading, setLoading] = useState(true);
   const [store, setStore] = useState<StoreType | null>(null);
@@ -57,11 +57,6 @@ export function StoreManagement() {
   const [qrEnabled, setQrEnabled] = useState(false);
   const [qrImageUrl, setQrImageUrl] = useState('');
   
-  // Reboot state
-  type RebootStatus = 'idle' | 'sending' | 'waiting' | 'success' | 'error';
-  const [needsReboot, setNeedsReboot] = useState(false);
-  const [rebootStatus, setRebootStatus] = useState<RebootStatus>('idle');
-
   useEffect(() => {
     loadStore();
   }, []);
@@ -146,7 +141,7 @@ export function StoreManagement() {
         
         // If language or currency changed, show reboot banner
         if (hasChanged) {
-          setNeedsReboot(true);
+          setNeedsRestart(true);
         }
       }
     } catch (err) {
@@ -237,60 +232,6 @@ export function StoreManagement() {
     }
   };
 
-  const handleReboot = useCallback(async () => {
-    setIsRebooting(true); // Enable reboot mode app-wide
-    setRebootStatus('sending');
-    
-    try {
-      await systemCompatibility.reboot();
-    } catch (err) {
-      // Expected - server may already be shutting down
-    }
-    
-    setRebootStatus('waiting');
-    
-    // Poll for server recovery
-    const pollInterval = 200; // ms
-    const maxAttempts = 450; // 90 seconds max (450 * 200ms)
-    let attempts = 0;
-    
-    const poll = async () => {
-      attempts++;
-      try {
-        const response = await healthApi.check();
-        if (response.data) {
-          // Server is back!
-          setRebootStatus('success');
-          setNeedsReboot(false);
-          toast({
-            title: t('admin.store.restartSuccess'),
-            description: t('admin.store.restartSuccessDesc'),
-          });
-          // setIsRebooting will be reset on reload
-          setTimeout(() => window.location.reload(), 1500);
-          return;
-        }
-      } catch {
-        // Expected during restart - server is still down
-      }
-      
-      if (attempts < maxAttempts) {
-        setTimeout(poll, pollInterval);
-      } else {
-        setRebootStatus('error');
-        setIsRebooting(false); // Exit reboot mode on timeout
-        toast({
-          title: t('admin.store.restartTimeout'),
-          description: t('admin.store.restartTimeoutDesc'),
-          variant: 'destructive',
-        });
-      }
-    };
-    
-    // Start polling after a brief delay (let server shut down)
-    setTimeout(poll, 500);
-  }, [toast, t, setIsRebooting]);
-
   const selectedCurrency = CURRENCY_OPTIONS.find(c => c.code === currency);
 
   if (loading) {
@@ -308,54 +249,6 @@ export function StoreManagement() {
           <h1 className="text-2xl font-bold text-foreground">{t('admin.store.title')}</h1>
           <p className="text-muted-foreground mt-1">{t('admin.store.description')}</p>
         </div>
-        
-        {/* Server Restart Action - Only shows when restart is needed */}
-        {needsReboot && (
-          <div className="flex items-center gap-3 shrink-0">
-            {rebootStatus === 'idle' && (
-              <Button 
-                variant="default" 
-                size="sm"
-                onClick={handleReboot}
-                className="gap-2 bg-warning text-warning-foreground hover:bg-warning/90"
-              >
-                <AlertTriangle className="w-4 h-4" />
-                {t('admin.store.restartRequired')}
-              </Button>
-            )}
-            
-            {rebootStatus === 'sending' && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{t('admin.store.sendingRestart')}</span>
-              </div>
-            )}
-            
-            {rebootStatus === 'waiting' && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{t('admin.store.waitingReconnect')}</span>
-              </div>
-            )}
-            
-            {rebootStatus === 'success' && (
-              <div className="flex items-center gap-2 text-sm text-green-600">
-                <CheckCircle className="w-4 h-4" />
-                <span>{t('admin.store.restartSuccess')}</span>
-              </div>
-            )}
-            
-            {rebootStatus === 'error' && (
-              <>
-                <span className="text-sm text-destructive">{t('admin.store.restartTimeout')}</span>
-                <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="gap-2">
-                  <RefreshCw className="w-4 h-4" />
-                  {t('admin.store.reloadManually')}
-                </Button>
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="grid gap-6 w-full md:grid-cols-2 grid-cols-1">

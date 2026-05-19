@@ -448,6 +448,7 @@ export function SettingsManagement() {
       } else {
         await refetchSettings();
         toast({ title: t('admin.settings.saved'), description: 'Printer settings updated' });
+        setNeedsRestart(true);
       }
     } finally {
       setSavingPrinter(false);

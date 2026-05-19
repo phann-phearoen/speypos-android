@@ -1291,6 +1291,16 @@ class NativeConfigStore(private val context: Context) {
             finalizeJobStatus(jobId, PRINT_JOB_DUPLICATE_PREVENTED, null)
             duplicatePrevented++
           } else {
+            // Check if printer is globally enabled before proceeding
+            val printerSettings = resolvePrinterNetworkSettings()
+            if (!printerSettings.optBoolean("enabled", false)) {
+                Log.w("NativeConfigStore", "[$runId] Printer is disabled in settings. Skipping job $jobId")
+                finalizeJobStatus(jobId, PRINT_JOB_DUPLICATE_PREVENTED, "Printer disabled")
+                duplicatePrevented++
+                processed++
+                continue
+            }
+
             validatePrinterTarget(jobToProcess!!)
             
             val variant = if (order.optString("status") == "voided") "VOID" else "INTERNAL"

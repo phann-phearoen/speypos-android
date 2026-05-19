@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Loader2, ChevronRight, Settings2, Star } from 'lu
 import { useMenu } from '@/contexts/MenuContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/NumericInput';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
@@ -503,11 +504,10 @@ export function CustomizationManagement() {
             </div>
             <div className="space-y-2">
               <Label>{t('admin.customizations.priceDelta')} ({CURRENCY_SYMBOL})</Label>
-              <Input
-                type="number"
-                step={getMinorUnit() === 0 ? '1' : '0.01'}
-                value={optionFormData.price_delta}
-                onChange={(e) => setOptionFormData({ ...optionFormData, price_delta: e.target.value })}
+              <NumericInput
+                allowDecimal={getMinorUnit() !== 0}
+                value={parseFloat(optionFormData.price_delta) || 0}
+                onChange={(val) => setOptionFormData({ ...optionFormData, price_delta: val.toString() })}
                 placeholder={getMinorUnit() === 0 ? '0' : '0.00'}
               />
               <p className="text-xs text-muted-foreground">
@@ -516,11 +516,9 @@ export function CustomizationManagement() {
             </div>
             <div className="space-y-2">
               <Label>{t('admin.customizations.sortOrder')}</Label>
-              <Input
-                type="number"
-                step="1"
-                value={optionFormData.sort_order}
-                onChange={(e) => setOptionFormData({ ...optionFormData, sort_order: e.target.value })}
+              <NumericInput
+                value={parseInt(optionFormData.sort_order) || 0}
+                onChange={(val) => setOptionFormData({ ...optionFormData, sort_order: val.toString() })}
                 placeholder="0"
               />
               <p className="text-xs text-muted-foreground">

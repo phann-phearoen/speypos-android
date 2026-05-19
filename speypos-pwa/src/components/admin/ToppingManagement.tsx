@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Loader2, ChevronRight, Layers } from 'lucide-reac
 import { useMenu } from '@/contexts/MenuContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/NumericInput';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getMenuCompatibilityProvider } from '@/lib/compatibility/menu';
@@ -418,10 +419,9 @@ export function ToppingManagement() {
             </div>
             <div className="space-y-2">
               <Label>{t('admin.categories.sortOrder')}</Label>
-              <Input
-                type="number"
-                value={groupFormData.sort_order}
-                onChange={(e) => setGroupFormData({ ...groupFormData, sort_order: e.target.value })}
+              <NumericInput
+                value={parseInt(groupFormData.sort_order) || 0}
+                onChange={(val) => setGroupFormData({ ...groupFormData, sort_order: val.toString() })}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -499,50 +499,45 @@ export function ToppingManagement() {
               </div>
               <div className="space-y-2">
                 <Label>{t('admin.toppings.unitPrice')} ({CURRENCY_SYMBOL})</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={optionFormData.unit_price}
-                  onChange={(e) => setOptionFormData({ ...optionFormData, unit_price: e.target.value })}
+                <NumericInput
+                  allowDecimal
+                  value={parseFloat(optionFormData.unit_price) || 0}
+                  onChange={(val) => setOptionFormData({ ...optionFormData, unit_price: val.toString() })}
                 />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>{t('admin.toppings.minQuantity')}</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={optionFormData.min_quantity}
-                  onChange={(e) => setOptionFormData({ ...optionFormData, min_quantity: e.target.value })}
+                <NumericInput
+                  allowDecimal
+                  value={parseFloat(optionFormData.min_quantity) || 0}
+                  onChange={(val) => setOptionFormData({ ...optionFormData, min_quantity: val.toString() })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>{t('admin.toppings.maxQuantity')}</Label>
-                <Input
-                  type="number"
-                  step="0.5"
+                <NumericInput
+                  allowDecimal
                   placeholder={t('admin.toppings.unlimited')}
-                  value={optionFormData.max_quantity}
-                  onChange={(e) => setOptionFormData({ ...optionFormData, max_quantity: e.target.value })}
+                  value={parseFloat(optionFormData.max_quantity) || 0}
+                  onChange={(val) => setOptionFormData({ ...optionFormData, max_quantity: val.toString() })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>{t('admin.toppings.stepQuantity')}</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={optionFormData.step_quantity}
-                  onChange={(e) => setOptionFormData({ ...optionFormData, step_quantity: e.target.value })}
+                <NumericInput
+                  allowDecimal
+                  value={parseFloat(optionFormData.step_quantity) || 0}
+                  onChange={(val) => setOptionFormData({ ...optionFormData, step_quantity: val.toString() })}
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label>{t('admin.categories.sortOrder')}</Label>
-              <Input
-                type="number"
-                value={optionFormData.sort_order}
-                onChange={(e) => setOptionFormData({ ...optionFormData, sort_order: e.target.value })}
+              <NumericInput
+                value={parseInt(optionFormData.sort_order) || 0}
+                onChange={(val) => setOptionFormData({ ...optionFormData, sort_order: val.toString() })}
               />
             </div>
           </div>

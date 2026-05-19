@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Loader2, ImageIcon } from 'lucide-react';
 import { useMenu } from '@/contexts/MenuContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/NumericInput';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -462,12 +463,11 @@ export function MenuItemManagement() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('admin.menuItems.price')} ({CURRENCY_SYMBOL})</label>
-              <Input
-                type="number"
-                step={getMinorUnit() === 0 ? '1' : '0.01'}
-                min="0"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              <NumericInput
+                allowDecimal={getMinorUnit() !== 0}
+                min={0}
+                value={parseFloat(formData.price) || 0}
+                onChange={(val) => setFormData({ ...formData, price: val.toString() })}
                 placeholder={getMinorUnit() === 0 ? '0' : '0.00'}
               />
             </div>

@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Loader2, FolderTree } from 'lucide-react';
 import { useMenu } from '@/contexts/MenuContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/NumericInput';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
@@ -326,10 +327,9 @@ export function CategoryManagement() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('admin.categories.sortOrder')}</label>
-              <Input
-                type="number"
+              <NumericInput
                 value={formData.sort_order}
-                onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                onChange={(val) => setFormData({ ...formData, sort_order: val })}
                 placeholder="0"
               />
               <p className="text-xs text-muted-foreground">{t('admin.categories.sortOrderHint')}</p>

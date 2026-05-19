@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { NumericInput } from '@/components/ui/NumericInput';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { healthApi } from '@/lib/api';
@@ -610,7 +611,12 @@ export function SettingsManagement() {
                 <Input type="password" value={cloudSync.api_key} onChange={(e) => setCloudSync(prev => ({ ...prev, api_key: e.target.value }))} placeholder="API Key" />
                 <div className="space-y-1.5">
                   <Label className="text-xs">Mini Batch Size</Label>
-                  <Input type="number" min="1" max="200" value={cloudSync.mini_batch_size} onChange={(e) => setCloudSync(prev => ({ ...prev, mini_batch_size: parseInt(e.target.value) || 20 }))} />
+                  <NumericInput
+                    min={1}
+                    max={200}
+                    value={cloudSync.mini_batch_size}
+                    onChange={(val) => setCloudSync(prev => ({ ...prev, mini_batch_size: val }))}
+                  />
                   <p className="text-[10px] text-muted-foreground">Background sync will trigger once this number of orders is reached.</p>
                 </div>
               </div>
@@ -649,7 +655,11 @@ export function SettingsManagement() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">{t('admin.settings.printerPort')}</Label>
-                <Input type="number" value={printerLan.port} onChange={(e) => setPrinterLan(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))} placeholder="9100" />
+                <NumericInput
+                  value={printerLan.port}
+                  onChange={(val) => setPrinterLan(prev => ({ ...prev, port: val }))}
+                  placeholder="9100"
+                />
               </div>
             </div>
           </CardContent>
@@ -715,7 +725,12 @@ export function SettingsManagement() {
             {RECEIPT_VARIANTS.map((variant) => (
               <div key={variant.code} className="flex items-center justify-between gap-4 p-3 bg-muted/50 rounded-lg">
                 <Label className="text-sm font-medium">{t(variant.labelKey)}</Label>
-                <Input type="number" min="0" value={receiptCopies.find(r => r.variant === variant.code)?.count ?? 0} onChange={(e) => updateReceiptCopyCount(variant.code, parseInt(e.target.value) || 0)} className="w-20" />
+                <NumericInput
+                  min={0}
+                  value={receiptCopies.find(r => r.variant === variant.code)?.count ?? 0}
+                  onChange={(val) => updateReceiptCopyCount(variant.code, val)}
+                  className="w-20"
+                />
               </div>
             ))}
           </CardContent>

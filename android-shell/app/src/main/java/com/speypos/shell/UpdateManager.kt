@@ -22,10 +22,41 @@ class UpdateManager(private val context: Context, private val configStore: Nativ
     }
 
     private var lastMetadata: JSONObject? = null
+    private var isChecking: Boolean = false
 
-    fun getLastMetadata(): JSONObject? = lastMetadata
+    fun getLastMetadata(): JSONObject? {
+        val meta = lastMetadata ?: return null
+        val serverVersion = meta.optInt("versionCode", 0)
+        val currentVersion = getCurrentVersionCode()
+        
+        return if (serverVersion > currentVersion) {
+            meta
+        } else {
+            Log.i(TAG, "Current version ($currentVersion) is up to date with server ($serverVersion). Clearing stale metadata.")
+            lastMetadata = null
+            null
+        }
+    }
+
+    fun getCurrentVersionCode(): Int {
+        return try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting current version code", e)
+            0
+        }
+    }
+
+    fun isChecking(): Boolean = isChecking
 
     suspend fun checkForUpdates(): JSONObject? {
+        isChecking = true
         return withContext(Dispatchers.IO) {
             try {
                 val settings = configStore.readUpdateSource()
@@ -48,19 +79,35 @@ class UpdateManager(private val context: Context, private val configStore: Nativ
                 if (connection.responseCode == 200) {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     val json = JSONObject(response)
-                    lastMetadata = json
+                    
+                    val serverVersion = json.optInt("versionCode", 0)
+                    val currentVersion = getCurrentVersionCode()
+                    
+                    Log.i(TAG, "Update check result: Server=$serverVersion, Local=$currentVersion")
+                    
+                    if (serverVersion > currentVersion) {
+                        lastMetadata = json
+                        Log.i(TAG, "New version detected: ${json.optString("versionName", "unknown")}")
+                    } else {
+                        lastMetadata = null
+                        Log.i(TAG, "App is already up to date")
+                    }
                     
                     // Update last check timestamp
                     configStore.updateUpdateSource(JSONObject().put("last_check_at", System.currentTimeMillis()))
 
-                    json
+                    lastMetadata
                 } else {
                     Log.w(TAG, "Update check failed with code: ${connection.responseCode}")
+                    lastMetadata = null
                     null
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error checking for updates", e)
+                lastMetadata = null
                 null
+            } finally {
+                isChecking = false
             }
         }
     }

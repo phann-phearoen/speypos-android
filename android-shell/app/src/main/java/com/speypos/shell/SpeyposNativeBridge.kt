@@ -36,6 +36,7 @@ class SpeyposNativeBridge(
     val meta = updateManager.getLastMetadata()
     return JSONObject()
       .put("data", meta ?: JSONObject.NULL)
+      .put("isChecking", updateManager.isChecking())
       .put("error", JSONObject.NULL)
       .toString()
   }

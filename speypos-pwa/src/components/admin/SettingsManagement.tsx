@@ -132,18 +132,25 @@ export function SettingsManagement() {
       // Polling for metadata update after trigger
       let attempts = 0;
       const poll = setInterval(async () => {
-        const { data } = await callNativeBridge<any>('getUpdateMetadata');
-        if (data || attempts > 10) {
+        const response = await callNativeBridge<any>('getUpdateMetadata');
+        const { data, isChecking } = response;
+
+        // If data is found, OR if checking has finished and data is null
+        if (data || (!isChecking && attempts > 1)) {
           setUpdateMetadata(data);
           clearInterval(poll);
           setIsCheckingUpdate(false);
           if (data) {
              toast({ title: 'Update Check', description: `Version ${data.versionName} available` });
-          } else {
+          } else if (!isChecking) {
              toast({ title: 'Update Check', description: 'System is up to date' });
           }
         }
         attempts++;
+        if (attempts > 30) { // Timeout after 30 seconds
+          clearInterval(poll);
+          setIsCheckingUpdate(false);
+        }
       }, 1000);
     } catch (err) {
       setIsCheckingUpdate(false);

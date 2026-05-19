@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Delete, Ban } from 'lucide-react';
 import { Header } from '@/components/pos/Header';
 import { ShiftClosePreviewModal } from '@/components/pos/ShiftClosePreviewModal';
 import { useShift } from '@/contexts/ShiftContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { usePendingActions } from '@/contexts/PendingActionsContext';
 import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
@@ -44,6 +45,7 @@ export default function PaymentPage() {
 
   const { isConnected } = useConnectionStatus();
   const { currentShift, currentStaff, closeShift, isLoading: shiftLoading } = useShift();
+  const { getPaymentQrConfig } = useSettings();
   const { refresh: refreshPendingActions } = usePendingActions();
   const { format, normalizeInput, toDisplayValue, symbol, getMinorUnit, generateQuickAmounts } = useCurrency();
   const { t } = useTranslation();
@@ -260,6 +262,7 @@ export default function PaymentPage() {
   };
 
   const quickAmounts = generateQuickAmounts(orderTotal);
+  const qrConfig = getPaymentQrConfig();
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -418,14 +421,27 @@ export default function PaymentPage() {
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="text-center">
-                  <p className="text-lg font-medium text-foreground mb-2">
-                    {t('payment.qrCode')}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {t('payment.waitingPayment')}
-                  </p>
-                </div>
+                {qrConfig.enabled && qrConfig.imageUrl ? (
+                  <div className="text-center p-6 bg-card rounded-2xl shadow-sm border border-border">
+                    <img
+                      src={qrConfig.imageUrl}
+                      alt={t('payment.scanQr')}
+                      className="w-48 h-48 object-contain mx-auto mb-4"
+                    />
+                    <p className="text-lg font-medium text-foreground">
+                      {t('payment.scanQr')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-lg font-medium text-foreground mb-2">
+                      {t('payment.qrCode')}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {t('payment.waitingPayment')}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

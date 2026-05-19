@@ -15,11 +15,6 @@ This document outlines planned and proposed UX enhancements for the SpeyPOS syst
     *   **Warning**: Descending double-tone (Deletion).
     *   **Error**: Low-pitched buzz (Invalid action).
 
-## 2. Visual "Fly-to-Cart" Pathing
-*   **Concept**: Animate a visual link between the touch point in the Menu Grid and the destination in the Order Panel.
-*   **Goal**: Reduce cognitive load by visually connecting action and result across the screen.
-*   **Implementation**: A "ghost" element or particle that follows a parabolic path into the shopping bag icon or the last added row.
-
 ## 3. Peripheral Cues (Zoning & Counter Animations)
 *   **Concept**: Use color and motion to communicate status to the user's peripheral vision.
 *   **Goal**: Faster navigation and instant confirmation of state changes.

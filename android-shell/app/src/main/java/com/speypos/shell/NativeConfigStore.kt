@@ -2298,6 +2298,37 @@ class NativeConfigStore(private val context: Context) {
 
   fun getContext(): Context = context
 
+  fun saveMediaFile(type: String, bytes: ByteArray, filename: String): String {
+    Log.d("NativeConfigStore", "saveMediaFile: type=$type, filename=$filename, bytes=${bytes.size}")
+    val mediaDir = java.io.File(context.filesDir, "media/$type")
+    if (!mediaDir.exists()) {
+      val created = mediaDir.mkdirs()
+      Log.d("NativeConfigStore", "Created media directory: ${mediaDir.absolutePath}, success: $created")
+    }
+
+    val file = java.io.File(mediaDir, filename)
+    try {
+        file.writeBytes(bytes)
+        Log.i("NativeConfigStore", "Saved media file: ${file.absolutePath}")
+    } catch (e: Exception) {
+        Log.e("NativeConfigStore", "Failed to write media file: ${file.absolutePath}", e)
+        throw e
+    }
+    return "/media/$type/$filename"
+  }
+
+  fun deleteMediaFile(type: String, filename: String): Boolean {
+    val file = java.io.File(context.filesDir, "media/$type/$filename")
+    return if (file.exists()) {
+      val deleted = file.delete()
+      Log.i("NativeConfigStore", "Deleted media file: ${file.absolutePath}, success: $deleted")
+      deleted
+    } else {
+      Log.w("NativeConfigStore", "Delete failed: File not found ${file.absolutePath}")
+      false
+    }
+  }
+
   private fun readArray(key: String): JSONArray {
     val raw = getPreferences().getString(key, null) ?: return JSONArray()
     return try {

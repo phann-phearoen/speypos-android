@@ -69,6 +69,8 @@ export interface SpeyposNativeBridge {
   updateStore(payloadJson: string): string;
   initialize(payloadJson: string): string;
   login(payloadJson: string): string;
+  uploadImage(type: string, base64Data: string, filename: string): string;
+  deleteImage(type: string, filename: string): string;
   getDeadLetterDetails(): string;
   purgeDeadLetters(): string;
   forceRetryAction(actionId: string): string;

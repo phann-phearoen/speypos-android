@@ -83,6 +83,59 @@ class SpeyposNativeBridge(
   }
 
   @JavascriptInterface
+  fun uploadImage(type: String, base64Data: String, filename: String): String {
+    android.util.Log.i("SpeyposBridge", "uploadImage called: type=$type, filename=$filename, base64Length=${base64Data.length}")
+    return try {
+      if (base64Data.isBlank()) {
+          throw IllegalArgumentException("Base64 data is empty")
+      }
+      
+      val decodedBytes = try {
+          android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+      } catch (e: Exception) {
+          android.util.Log.e("SpeyposBridge", "Base64 decoding failed", e)
+          throw Exception("Invalid image data format: ${e.message}")
+      }
+      
+      android.util.Log.d("SpeyposBridge", "Decoded bytes size: ${decodedBytes.size}")
+      val path = configStore.saveMediaFile(type, decodedBytes, filename)
+      
+      val result = JSONObject()
+        .put("data", JSONObject()
+          .put("url", path)
+          .put("filename", filename)
+          .put("message", "Upload successful"))
+        .put("error", JSONObject.NULL)
+        .toString()
+      
+      android.util.Log.i("SpeyposBridge", "uploadImage success: $path")
+      result
+    } catch (e: Exception) {
+      android.util.Log.e("SpeyposBridge", "uploadImage failed", e)
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", e.message ?: "Failed to upload image")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun deleteImage(type: String, filename: String): String {
+    return try {
+      val success = configStore.deleteMediaFile(type, filename)
+      JSONObject()
+        .put("data", success)
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (e: Exception) {
+      JSONObject()
+        .put("data", false)
+        .put("error", e.message ?: "Failed to delete image")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
   fun initialize(payloadJson: String): String {
     return try {
       val result = configStore.initialize(JSONObject(payloadJson))

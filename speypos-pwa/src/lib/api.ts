@@ -1,6 +1,7 @@
 // API Client for SpeyPOS Local Backend
 import type { PendingActionsStatus, RuntimeStatus } from '@/types/pos';
 import { getApiBaseUrl, getBackendUrl } from './runtime-config';
+import { callNativeBridge } from './compatibility/nativeBridge';
 
 const BACKEND_URL = getBackendUrl();
 const API_BASE = getApiBaseUrl();
@@ -478,6 +479,49 @@ export const storeApi = {
 
 export const uploadApi = {
   upload: async (type: 'menu' | 'category' | 'staff', file: File): Promise<ApiResponse<UploadResponse>> => {
+    // Check if we should use the native bridge for upload
+    if (typeof window !== 'undefined' && window.SpeyposNativeBridge) {
+      console.log(`[Upload] Using native bridge for ${type} upload: ${file.name} (${file.size} bytes)`);
+      try {
+        // Convert file to base64
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove prefix: "data:image/png;base64,"
+            if (typeof result !== 'string') {
+                reject(new Error('FileReader result is not a string'));
+                return;
+            }
+            const parts = result.split(',');
+            if (parts.length < 2) {
+                reject(new Error('Invalid data URL format'));
+                return;
+            }
+            resolve(parts[1]);
+          };
+          reader.onerror = (e) => reject(new Error(`FileReader error: ${e}`));
+          reader.readAsDataURL(file);
+        });
+
+        console.log(`[Upload] Base64 conversion complete. Length: ${base64Data.length}. Calling bridge...`);
+        const response = await callNativeBridge<UploadResponse>(
+          'uploadImage',
+          type,
+          base64Data,
+          file.name
+        );
+        console.log('[Upload] Bridge response:', response);
+        return response;
+      } catch (error) {
+        console.error('[Upload] Native upload failed:', error);
+        return {
+          data: null,
+          error: error instanceof Error ? error.message : 'Native upload failed',
+        };
+      }
+    }
+
     try {
       const formData = new FormData();
       formData.append('image', file);
@@ -508,6 +552,12 @@ export const uploadApi = {
   },
 
   deleteImage: async (type: string, filename: string): Promise<ApiResponse<null>> => {
+    // Check if we should use the native bridge for deletion
+    if (typeof window !== 'undefined' && window.SpeyposNativeBridge) {
+      const result = callNativeBridge<boolean>('deleteImage', type, filename);
+      return { data: null, error: result.error };
+    }
+
     const userRole = getStoredUserRole();
     
     try {

@@ -223,7 +223,39 @@ class MainActivity : AppCompatActivity() {
         
         Log.d("SpeyposIntercept", "Request: ${url}")
 
-        // 1. Handle native API calls on the same virtual domain first to avoid asset loader collisions
+        // 1. Handle media files from internal storage
+        if (url.host == VIRTUAL_DOMAIN && url.path?.startsWith("/media/") == true) {
+          val path = url.path!!
+          Log.d("SpeyposIntercept", "Intercepting Media: $path")
+          val parts = path.split("/")
+          if (parts.size >= 4) {
+            val type = parts[2]
+            val filename = parts[3]
+            val file = java.io.File(applicationContext.filesDir, "media/$type/$filename")
+            
+            if (file.exists()) {
+              val mimeType = when {
+                filename.lowercase().endsWith(".jpg") || filename.lowercase().endsWith(".jpeg") -> "image/jpeg"
+                filename.lowercase().endsWith(".png") -> "image/png"
+                filename.lowercase().endsWith(".webp") -> "image/webp"
+                filename.lowercase().endsWith(".gif") -> "image/gif"
+                else -> "application/octet-stream"
+              }
+              
+              Log.d("SpeyposIntercept", "Serving local media: ${file.absolutePath} (MIME: $mimeType)")
+              val response = WebResourceResponse(mimeType, null, file.inputStream())
+              response.responseHeaders = mapOf(
+                "Access-Control-Allow-Origin" to "*",
+                "Cache-Control" to "max-age=3600"
+              )
+              return response
+            } else {
+              Log.w("SpeyposIntercept", "Media file not found: ${file.absolutePath}")
+            }
+          }
+        }
+
+        // 2. Handle native API calls on the same virtual domain first to avoid asset loader collisions
         if (url.host == VIRTUAL_DOMAIN && url.path?.startsWith("/api/") == true) {
           Log.d("SpeyposIntercept", "Intercepting API: ${url.path}")
           val apiResponse = handleNativeApiRequest(request)

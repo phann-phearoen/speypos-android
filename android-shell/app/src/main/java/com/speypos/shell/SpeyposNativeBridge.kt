@@ -98,7 +98,6 @@ class SpeyposNativeBridge(
           throw Exception("Invalid image data format: ${e.message}")
       }
       
-      android.util.Log.d("SpeyposBridge", "Decoded bytes size: ${decodedBytes.size}")
       val path = configStore.saveMediaFile(type, decodedBytes, filename)
       
       val result = JSONObject()
@@ -942,18 +941,6 @@ class SpeyposNativeBridge(
     }
   }
 
-  @JavascriptInterface
-  fun debugCloudSyncSettings(): String {
-    return try {
-      val settings = configStore.readCloudSyncSettings()
-      JSONObject()
-        .put("data", settings)
-        .put("error", JSONObject.NULL)
-        .toString()
-    } catch (e: Exception) {
-      JSONObject().put("data", JSONObject.NULL).put("error", e.message).toString()
-    }
-  }
 
   @JavascriptInterface
   fun updateStore(payloadJson: String): String {

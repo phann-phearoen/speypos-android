@@ -780,12 +780,12 @@ const translations: Record<string, TranslationDictionary> = {
     'admin.settings.diagnosticsPrintQueue': 'ជួរការបោះពុម្ព',
     'admin.settings.diagnosticsActions': 'សកម្មភាព',
     'admin.settings.diagnosticsPending': 'កំពុងរង់ចាំ',
-    'admin.settings.diagnosticsDeadLetter': 'លិខិតស្លាប់ (Dead Letter)',
+    'admin.settings.diagnosticsDeadLetter': 'វិក័យបត្រគាំង',
     'admin.settings.diagnosticsLastUpdated': 'បច្ចុប្បន្នភាពចុងក្រោយ៖ {{time}}',
     'admin.settings.diagnosticsDetails': 'ព័ត៌មានលម្អិត',
     'admin.settings.diagnosticsPurge': 'សម្អាតទាំងអស់',
     'admin.settings.diagnosticsExportLogs': 'នាំចេញកំណត់ហេតុវិភាគ (Log)',
-    'admin.settings.diagnosticsDeadLetterDetails': 'ព័ត៌មានលម្អិតលិខិតស្លាប់',
+    'admin.settings.diagnosticsDeadLetterDetails': 'ព័ត៌មានលម្អិតវិក័យបត្រគាំង',
 
     // Setup Page
     'setup.seedTitle': 'រៀបចំពីគំរូ',

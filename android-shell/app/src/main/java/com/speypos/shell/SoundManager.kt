@@ -10,7 +10,6 @@ class SoundManager(context: Context) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     fun playSound(type: String) {
-        Log.d("SoundManager", "Play Sound: $type")
         when (type.lowercase()) {
             "click" -> {
                 // High-pitched short digital click (Confirmed working)

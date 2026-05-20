@@ -1125,10 +1125,8 @@ class NativeConfigStore(private val context: Context) {
 
   private fun checkAndTriggerMiniBatch(shiftId: String) {
     val cloudSettings = readCloudSyncSettings()
-    Log.d("NativeConfigStore", "Checking mini-batch trigger. Cloud settings: $cloudSettings")
     
     if (!cloudSettings.optBoolean("enabled", false)) {
-        Log.d("NativeConfigStore", "Mini-batch trigger skipped: Cloud sync disabled.")
         return
     }
 
@@ -1210,7 +1208,6 @@ class NativeConfigStore(private val context: Context) {
       throw IllegalArgumentException("Order not found: $orderId")
     }
 
-    Log.d("NativeConfigStore", "printReceipt: Found order $orderId with status=${target.optString("status")} and print_count=${target.optInt("print_count")}")
 
     if (target.optString("status") != "completed") {
       Log.e("NativeConfigStore", "printReceipt failed: Order $orderId status is ${target.optString("status")}, not completed")
@@ -1276,7 +1273,6 @@ class NativeConfigStore(private val context: Context) {
         }
 
         if (jobToProcess == null) {
-          Log.d("NativeConfigStore", "[$runId] No more eligible jobs in queue.")
           break 
         }
 
@@ -1469,7 +1465,6 @@ class NativeConfigStore(private val context: Context) {
             val existing = queue.optJSONObject(index) ?: continue
             if (existing.optString("id") == jobId) {
               val status = existing.optString("status")
-              Log.d("NativeConfigStore", "Found existing initial job for order $orderId with status: $status")
               
               if (status == PRINT_JOB_SUCCEEDED || status == PRINT_JOB_DUPLICATE_PREVENTED || status == PRINT_JOB_PROCESSING) {
                 Log.i("NativeConfigStore", "Skipping enqueue: Job already exists in state $status for order $orderId")
@@ -1547,7 +1542,6 @@ class NativeConfigStore(private val context: Context) {
 
   private fun incrementOrderPrint(orderId: String, now: Long) {
     synchronized(globalFileLock) {
-        Log.d("NativeConfigStore", "Incrementing print count for order: $orderId")
         val current = readOrders()
         val updated = JSONArray()
         var found = false
@@ -1938,7 +1932,6 @@ class NativeConfigStore(private val context: Context) {
       }
 
       val responseBody = connection.inputStream.bufferedReader().readText()
-      Log.d("NativeConfigStore", "Handshake response: $responseBody")
       val responseJson = JSONObject(responseBody)
       val data = responseJson.optJSONObject("data") ?: responseJson
       val storeClient = data.optJSONObject("store_client") ?: data
@@ -2025,7 +2018,6 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun markOrderAsSynced(orderId: String) {
-    Log.d("NativeConfigStore", "Marking order $orderId as synced")
     val current = readOrders()
     val updated = JSONArray()
     val now = System.currentTimeMillis()
@@ -2036,7 +2028,6 @@ class NativeConfigStore(private val context: Context) {
       if (order.optString("id") == orderId) {
         order.put("cloud_sync_at", now)
         found = true
-        Log.v("NativeConfigStore", "Updated cloud_sync_at for $orderId")
       }
       updated.put(order)
     }
@@ -2052,7 +2043,6 @@ class NativeConfigStore(private val context: Context) {
   fun getUnsyncedOrders(shiftId: String, limit: Int): List<JSONObject> {
     val orders = readOrders()
     val result = mutableListOf<JSONObject>()
-    Log.d("NativeConfigStore", "Searching for up to $limit unsynced orders in shift $shiftId. Total orders in store: ${orders.length()}")
     
     for (i in 0 until orders.length()) {
       val o = orders.optJSONObject(i) ?: continue
@@ -2102,8 +2092,6 @@ class NativeConfigStore(private val context: Context) {
   private fun performCloudRequest(method: String, endpoint: String, apiKey: String, body: String): JSONObject {
     Log.i("NativeConfigStore", "Cloud Request: $method $endpoint")
     val maskedKey = if (apiKey.length > 8) apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length - 4) else "****"
-    Log.d("NativeConfigStore", "API Key: $maskedKey")
-    Log.d("NativeConfigStore", "Request Body: $body")
     
     var connection: java.net.HttpURLConnection? = null
     try {
@@ -2128,7 +2116,6 @@ class NativeConfigStore(private val context: Context) {
       }
 
       val responseBody = connection.inputStream.bufferedReader().readText()
-      Log.d("NativeConfigStore", "Cloud Response Body: $responseBody")
       return JSONObject(responseBody)
     } catch (e: Exception) {
       Log.e("NativeConfigStore", "Cloud Request Exception: ${e.message}")
@@ -2236,7 +2223,6 @@ class NativeConfigStore(private val context: Context) {
       allEntries.keys.toList()
     }
 
-    Log.d("NativeConfigStore", "Keys to export count: ${keysToExport.size}")
 
     keysToExport.forEach { key ->
       allEntries[key]?.let { value ->
@@ -2363,14 +2349,11 @@ class NativeConfigStore(private val context: Context) {
   private fun getPreferences() =
     context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-  fun getContext(): Context = context
 
   fun saveMediaFile(type: String, bytes: ByteArray, filename: String): String {
-    Log.d("NativeConfigStore", "saveMediaFile: type=$type, filename=$filename, bytes=${bytes.size}")
     val mediaDir = java.io.File(context.filesDir, "media/$type")
     if (!mediaDir.exists()) {
       val created = mediaDir.mkdirs()
-      Log.d("NativeConfigStore", "Created media directory: ${mediaDir.absolutePath}, success: $created")
     }
 
     val file = java.io.File(mediaDir, filename)
@@ -2541,7 +2524,6 @@ class NativeConfigStore(private val context: Context) {
 
         when (type) {
           ACTION_TYPE_CLOUD_SYNC -> {
-            Log.d("PendingAction", "Processing Cloud Sync action: $payload")
           }
           ACTION_TYPE_ORDER_REPORT -> {
             val orderId = payload.optString("order_id")

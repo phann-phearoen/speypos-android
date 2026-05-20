@@ -37,7 +37,4 @@ object DiagnosticsManager {
         }
     }
 
-    fun clear() {
-        crumbs.clear()
-    }
 }

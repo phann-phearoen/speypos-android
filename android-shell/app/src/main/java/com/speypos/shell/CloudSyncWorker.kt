@@ -21,7 +21,6 @@ class CloudSyncWorker(
 
     override suspend fun doWork(): Result {
         val queue = store.readSyncQueue()
-        Log.d("CloudSyncWorker", "Starting sync queue processing. Queue length: ${queue.length()}")
         if (queue.length() == 0) return Result.success()
 
         var hasFailure = false
@@ -34,7 +33,6 @@ class CloudSyncWorker(
             val nextAttemptAt = OffsetDateTime.parse(nextAttemptAtStr)
             
             if (nextAttemptAt.isAfter(now)) {
-                Log.d("CloudSyncWorker", "Skipping job $jobId, next attempt at $nextAttemptAtStr")
                 continue
             }
 
@@ -60,7 +58,6 @@ class CloudSyncWorker(
         val shiftId = job.optString("shiftId")
         val cloudSettings = store.readCloudSyncSettings()
         
-        Log.d("CloudSyncWorker", "Processing job type: $type for shift: $shiftId")
         
         if (!cloudSettings.optBoolean("enabled", false)) {
             Log.w("CloudSyncWorker", "Skipping job: Cloud sync is disabled in settings")
@@ -84,13 +81,11 @@ class CloudSyncWorker(
     private fun syncMiniBatch(shiftId: String, limit: Int) {
         val orders = store.getUnsyncedOrders(shiftId, limit)
         if (orders.isEmpty()) {
-            Log.d("CloudSyncWorker", "No unsynced orders found for mini-batch on shift $shiftId")
             return
         }
 
         Log.i("CloudSyncWorker", "Starting mini-batch sync for ${orders.size} orders")
         val batchId = store.createCloudEventBatch(shiftId, "manual")
-        Log.d("CloudSyncWorker", "Created mini-batch: $batchId")
         uploadOrders(batchId, orders)
     }
 
@@ -100,11 +95,9 @@ class CloudSyncWorker(
         while (true) {
             val orders = store.getUnsyncedOrders(shiftId, limit)
             if (orders.isEmpty()) {
-                Log.d("CloudSyncWorker", "No more unsynced orders found for shift $shiftId. Flush complete.")
                 break
             }
 
-            Log.d("CloudSyncWorker", "Flushing next page of ${orders.size} orders")
             val batchId = store.createCloudEventBatch(shiftId, "shift_close")
             uploadOrders(batchId, orders)
             totalUploaded += orders.size
@@ -125,11 +118,9 @@ class CloudSyncWorker(
         for (order in orders) {
             val orderId = order.optString("id")
             try {
-                Log.d("CloudSyncWorker", "Uploading order $orderId to batch $batchId")
                 val event = formatOrderEvent(order, currency)
                 store.uploadCloudEvent(batchId, event)
                 store.markOrderAsSynced(orderId)
-                Log.v("CloudSyncWorker", "Successfully synced order $orderId")
             } catch (e: Exception) {
                 Log.e("CloudSyncWorker", "Failed to upload order $orderId: ${e.message}")
                 throw e // Propagate to processJob to trigger retry/backoff

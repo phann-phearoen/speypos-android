@@ -69,7 +69,6 @@ class UpdateManager(private val context: Context, private val configStore: Nativ
                 val secretKey = settings.optString("api_key")
                 val url = URL(baseUrl)
                 
-                Log.d(TAG, "Checking for updates at: $baseUrl")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.setRequestProperty("X-Spey-Update-Secret", secretKey)

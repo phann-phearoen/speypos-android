@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 8.5.2" type="partial_results">
+    <map id="UnsafeIntentLaunch">
+            <map id="unprotected">
+                <entry
+                    name="com.speypos.shell.MainActivity"
+                    boolean="true"/>
+            </map>
+    </map>
+    <map id="UnsafeImplicitIntentLaunch">
+            <map id="actionsSent">
+                    <map id="android.settings.MANAGE_UNKNOWN_APP_SOURCES (used to start an activity)">
+                        <location id="0"
+                            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/speypos/shell/UpdateManager.kt"
+                            line="161"
+                            column="38"
+                            startOffset="6118"
+                            endLine="161"
+                            endColumn="88"
+                            endOffset="6168"/>
+                    </map>
+                    <map id="android.intent.action.VIEW (used to start an activity)">
+                        <location id="0"
+                            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/speypos/shell/UpdateManager.kt"
+                            line="153"
+                            column="22"
+                            startOffset="5645"
+                            endLine="153"
+                            endColumn="48"
+                            endOffset="5671"/>
+                    </map>
+            </map>
+    </map>
+    <map id="UnusedResources">
+        <entry
+            name="model"
+            string="color[shell_background(U),shell_foreground(U),shell_muted_foreground(U)],id[webView(U),errorContainer(U),errorTitle(D),errorMessage(U),retryButton(U)],layout[activity_main(U)],mipmap[ic_launcher(U),ic_launcher_round(U)],string[app_name(U)],style[Theme_SpeyposShell(U),Theme_MaterialComponents_DayNight_NoActionBar(R)],xml[file_paths(U)];8^0^1^2,c^d^0;;;"/>
+    </map>
+
+</incidents>

@@ -17,7 +17,6 @@ class VibrationManager(context: Context) {
     }
 
     fun impact(type: String) {
-        Log.d("VibrationManager", "Impact: $type")
         when (type.lowercase()) {
             "light" -> vibrate(15, 100)
             "medium" -> vibrate(30, 180)
@@ -27,7 +26,6 @@ class VibrationManager(context: Context) {
     }
 
     fun notification(type: String) {
-        Log.d("VibrationManager", "Notification: $type")
         when (type.lowercase()) {
             "success" -> {
                 // Double pulse: light then medium

@@ -80,10 +80,8 @@ class MainActivity : AppCompatActivity() {
     binding = ActivityMainBinding.inflate(layoutInflater)
     setContentView(binding.root)
     
-    Log.d("SpeyposAssets", "Checking index.html access...")
     try {
       val stream = applicationContext.assets.open("web/index.html")
-      Log.d("SpeyposAssets", "index.html opened successfully. Size: ${stream.available()}")
       stream.close()
     } catch (e: Exception) {
       Log.e("SpeyposAssets", "CRITICAL: Could not open index.html from assets!", e)
@@ -93,10 +91,6 @@ class MainActivity : AppCompatActivity() {
     schedulePrintQueueWorkers()
     scheduleCloudSyncWorkers()
     
-    // Check for updates on startup (Disabled temporarily for debugging shell load)
-    // lifecycleScope.launch {
-    //   updateManager.checkForUpdates()
-    // }
 
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -113,7 +107,6 @@ class MainActivity : AppCompatActivity() {
   private fun observeRuntimeActions() {
     lifecycleScope.launchWhenStarted {
       runtimeState.actions.collect { action ->
-        Log.d("SpeyposLifecycle", "Received shell action: $action")
         when (action) {
           ShellAction.RELOAD_FRONTEND -> {
             mainHandler.post { loadFrontend() }
@@ -175,7 +168,7 @@ class MainActivity : AppCompatActivity() {
         when (level) {
           android.webkit.ConsoleMessage.MessageLevel.ERROR -> Log.e("SpeyposJS", formatted)
           android.webkit.ConsoleMessage.MessageLevel.WARNING -> Log.w("SpeyposJS", formatted)
-          else -> Log.d("SpeyposJS", formatted)
+          else -> {}
         }
         
         DiagnosticsManager.addBreadcrumb("JS $level: $message")
@@ -221,12 +214,10 @@ class MainActivity : AppCompatActivity() {
       ): WebResourceResponse? {
         val url = request?.url ?: return null
         
-        Log.d("SpeyposIntercept", "Request: ${url}")
 
         // 1. Handle media files from internal storage
         if (url.host == VIRTUAL_DOMAIN && url.path?.startsWith("/media/") == true) {
           val path = url.path!!
-          Log.d("SpeyposIntercept", "Intercepting Media: $path")
           val parts = path.split("/")
           if (parts.size >= 4) {
             val type = parts[2]
@@ -242,7 +233,6 @@ class MainActivity : AppCompatActivity() {
                 else -> "application/octet-stream"
               }
               
-              Log.d("SpeyposIntercept", "Serving local media: ${file.absolutePath} (MIME: $mimeType)")
               val response = WebResourceResponse(mimeType, null, file.inputStream())
               response.responseHeaders = mapOf(
                 "Access-Control-Allow-Origin" to "*",
@@ -257,7 +247,6 @@ class MainActivity : AppCompatActivity() {
 
         // 2. Handle native API calls on the same virtual domain first to avoid asset loader collisions
         if (url.host == VIRTUAL_DOMAIN && url.path?.startsWith("/api/") == true) {
-          Log.d("SpeyposIntercept", "Intercepting API: ${url.path}")
           val apiResponse = handleNativeApiRequest(request)
           if (apiResponse != null) return apiResponse
         }
@@ -271,7 +260,6 @@ class MainActivity : AppCompatActivity() {
             "web" + path
           }
           
-          Log.d("SpeyposIntercept", "Mapping $path -> $assetPath")
           
           try {
             val mimeType = when {
@@ -336,7 +324,6 @@ class MainActivity : AppCompatActivity() {
     val start = System.currentTimeMillis()
     val path = request.url.path ?: return null
     
-    Log.d("SpeyposAPI", "Incoming API Request: ${request.method} $path")
     
     if (request.method == "OPTIONS") {
       return WebResourceResponse(
@@ -452,7 +439,6 @@ class MainActivity : AppCompatActivity() {
     val encodedApiBaseUrl = Uri.encode(apiBaseUrl)
     
     // We append #/pos/shift (or just #/) to bypass any early redirect issues
-    // while keeping the native query params
     return "https://$VIRTUAL_DOMAIN/web/index.html?backendUrl=$backendUrl&apiBaseUrl=$encodedApiBaseUrl&apiProvider=$apiProvider&disableServiceWorker=true#/"
   }
 

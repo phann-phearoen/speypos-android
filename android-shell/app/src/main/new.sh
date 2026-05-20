@@ -1,1 +1,0 @@
-adb shell pm clear com.speypos.shell

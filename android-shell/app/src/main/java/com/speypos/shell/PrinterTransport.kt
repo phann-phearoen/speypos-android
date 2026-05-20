@@ -34,7 +34,6 @@ class PrinterTransport {
             } finally {
                 try {
                     socket?.close()
-                    Log.d(TAG, "[$connectionId] Socket closed")
                 } catch (e: Exception) {
                     Log.w(TAG, "[$connectionId] Error closing printer socket: ${e.message}")
                 }

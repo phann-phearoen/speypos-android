@@ -24,7 +24,6 @@ class TelegramReporter {
 
             var connection: HttpURLConnection? = null
             try {
-                Log.d(TAG, "Sending message to Telegram chat $chatId")
                 val url = URL(endpoint)
                 connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
@@ -40,7 +39,6 @@ class TelegramReporter {
 
                 val responseCode = connection.responseCode
                 if (responseCode == HttpURLConnection.HTTP_OK) {
-                    Log.d(TAG, "Telegram message sent successfully")
                 } else {
                     val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "No error body"
                     Log.e(TAG, "Failed to send Telegram message. Code: $responseCode, Error: $errorBody")

@@ -61,7 +61,14 @@ const nativeShiftCompatibilityProvider: ShiftCompatibilityProvider = {
 
     return httpShiftCompatibilityProvider.getShiftsByDate(date);
   },
-  getCloseDayPreview: () => httpShiftCompatibilityProvider.getCloseDayPreview(),
+  getCloseDayPreview: async () => {
+    const result = callNativeBridge<DayClosePreviewResponse>('getCloseDayPreview');
+    if (!result.error) {
+      return result;
+    }
+
+    return httpShiftCompatibilityProvider.getCloseDayPreview();
+  },
   openShift: async (staffId: string) => {
     const result = callNativeBridge<Shift>('openShift', staffId);
     if (!result.error) {

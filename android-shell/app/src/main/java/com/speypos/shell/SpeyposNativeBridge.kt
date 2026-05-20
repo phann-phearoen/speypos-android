@@ -458,6 +458,21 @@ class SpeyposNativeBridge(
   }
 
   @JavascriptInterface
+  fun getCloseDayPreview(): String {
+    return try {
+      JSONObject()
+        .put("data", configStore.getCloseDayPreview())
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Failed to get close day preview")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
   fun closeDay(): String {
     return try {
       JSONObject()

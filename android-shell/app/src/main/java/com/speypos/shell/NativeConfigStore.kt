@@ -972,39 +972,46 @@ class NativeConfigStore(private val context: Context) {
     val enriched = JSONArray()
     for (i in 0 until count) {
       val order = orders.optJSONObject(i) ?: continue
-      val staffId = order.optString("staff_id")
+      enriched.put(enrichOrder(order, staff, catalogItems))
+    }
+    return enriched
+  }
 
-      // Find staff name
-      var staffName = ""
-      for (j in 0 until staff.length()) {
-        val s = staff.optJSONObject(j) ?: continue
-        if (s.optString("id") == staffId) {
-          staffName = s.optString("name")
-          break
-        }
+  private fun enrichOrder(
+    order: JSONObject,
+    staff: JSONArray,
+    catalogItems: JSONArray
+  ): JSONObject {
+    val staffId = order.optString("staff_id")
+
+    // Find staff name
+    var staffName = ""
+    for (j in 0 until staff.length()) {
+      val s = staff.optJSONObject(j) ?: continue
+      if (s.optString("id") == staffId) {
+        staffName = s.optString("name")
+        break
       }
+    }
 
-      val enrichedOrder = JSONObject(order.toString()).put("staff_name", staffName)
-      
-      // Enrich items with names if missing
-      val items = enrichedOrder.optJSONArray("items") ?: JSONArray()
-      for (k in 0 until items.length()) {
-        val item = items.optJSONObject(k) ?: continue
-        if (item.optString("menu_item_name").isBlank()) {
-          val itemId = item.optString("menu_item_id")
-          for (l in 0 until catalogItems.length()) {
-            val catalogItem = catalogItems.optJSONObject(l) ?: continue
-            if (catalogItem.optString("id") == itemId) {
-              item.put("menu_item_name", catalogItem.optString("name"))
-              break
-            }
+    val enrichedOrder = JSONObject(order.toString()).put("staff_name", staffName)
+
+    // Enrich items with names if missing
+    val items = enrichedOrder.optJSONArray("items") ?: JSONArray()
+    for (k in 0 until items.length()) {
+      val item = items.optJSONObject(k) ?: continue
+      if (item.optString("menu_item_name").isBlank()) {
+        val itemId = item.optString("menu_item_id")
+        for (l in 0 until catalogItems.length()) {
+          val catalogItem = catalogItems.optJSONObject(l) ?: continue
+          if (catalogItem.optString("id") == itemId) {
+            item.put("menu_item_name", catalogItem.optString("name"))
+            break
           }
         }
       }
-
-      enriched.put(enrichedOrder)
     }
-    return enriched
+    return enrichedOrder
   }
 
   fun createOrder(payload: JSONObject): JSONObject {
@@ -1768,6 +1775,56 @@ class NativeConfigStore(private val context: Context) {
       .put("timestamp", now))
 
     return updatedShift
+  }
+
+  fun getCloseDayPreview(): JSONObject {
+    val shifts = readShifts()
+    val orders = readArray(PREF_NATIVE_ORDERS_JSON)
+    val staff = readStaff()
+    val catalogItems = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
+    val today = LocalDate.now().toString()
+
+    val relevantShifts = JSONArray()
+    for (i in 0 until shifts.length()) {
+      val shift = shifts.optJSONObject(i) ?: continue
+      val shiftDate = shift.optString("date")
+      val status = shift.optString("status")
+
+      // Include shifts from today OR any currently open shifts
+      if (shiftDate == today || status == "open") {
+        val shiftId = shift.optString("id")
+        val staffId = shift.optString("staff_id")
+
+        // Find staff for this shift
+        var shiftStaff: JSONObject? = null
+        for (j in 0 until staff.length()) {
+          val s = staff.optJSONObject(j) ?: continue
+          if (s.optString("id") == staffId) {
+            shiftStaff = s
+            break
+          }
+        }
+
+        // Find orders for this shift
+        val shiftOrders = JSONArray()
+        for (j in 0 until orders.length()) {
+          val order = orders.optJSONObject(j) ?: continue
+          if (order.optString("shift_id") == shiftId) {
+            shiftOrders.put(enrichOrder(order, staff, catalogItems))
+          }
+        }
+
+        val shiftSummary = JSONObject(shift.toString())
+          .put("staff", shiftStaff ?: JSONObject.NULL)
+          .put("orders", shiftOrders)
+
+        relevantShifts.put(shiftSummary)
+      }
+    }
+
+    return JSONObject()
+      .put("businessDate", today)
+      .put("shifts", relevantShifts)
   }
 
   fun closeDay(): JSONObject {

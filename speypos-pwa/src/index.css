@@ -358,6 +358,70 @@
     min-width: var(--touch-target);
   }
 
+  /* Rolling Counter Utilities */
+  .odometer-digit-container {
+    display: inline-block;
+    height: 1.1em;
+    overflow: hidden;
+    line-height: 1.1em;
+    vertical-align: middle;
+  }
+
+  .odometer-digit-lane {
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .odometer-digit {
+    height: 1.1em;
+    text-align: center;
+  }
+
+  /* Last Action Highlight */
+  @keyframes last-action-glow {
+    0% { background-color: hsl(var(--accent) / 0.15); border-color: hsl(var(--accent) / 0.4); }
+    100% { background-color: transparent; border-color: transparent; }
+  }
+
+  .last-action-highlight {
+    animation: last-action-glow 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    border-width: 1px;
+    border-style: solid;
+  }
+
+  /* Amount Breathing */
+  @keyframes amount-breathing {
+    0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 0px transparent); }
+    50% { transform: scale(1.05); opacity: 0.95; filter: drop-shadow(0 0 15px hsl(var(--accent) / 0.4)); }
+  }
+
+  .animate-amount-breathing {
+    display: inline-block;
+    animation: amount-breathing 2s ease-in-out infinite;
+    will-change: transform, filter;
+  }
+
+  /* Success Celebratory Animations */
+  @keyframes success-pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes success-ripple {
+    0% { transform: scale(1); opacity: 0.5; border-width: 4px; }
+    100% { transform: scale(2); opacity: 0; border-width: 1px; }
+  }
+
+  .animate-success-pop {
+    animation: success-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-success-ripple {
+    animation: success-ripple 1s cubic-bezier(0, 0, 0.2, 1) forwards;
+  }
+
   @media (orientation: landscape) and (max-height: 820px) {
     .keyboard-safe-dialog-content {
       top: max(0.75rem, env(safe-area-inset-top)) !important;

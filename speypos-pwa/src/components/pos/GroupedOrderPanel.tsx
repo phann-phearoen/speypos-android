@@ -2,14 +2,16 @@ import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Pencil } from 'lucide-rea
 import type { OrderItem } from '@/types/pos';
 import { useCurrency } from '@/lib/currency';
 import { useTranslation } from '@/lib/i18n';
-import { groupOrderItems, type GroupedOrderItem, type VariationGroup } from '@/lib/orderGrouping';
-import { useMemo } from 'react';
+import { groupOrderItems, type GroupedOrderItem, type VariationGroup, generateSignature } from '@/lib/orderGrouping';
+import { useMemo, useEffect } from 'react';
 import { triggerImpact, triggerNotification } from '@/lib/feedback';
+import { RollingCounter } from '../ui/RollingCounter';
 
 interface GroupedOrderPanelProps {
   items: OrderItem[];
   total: number;
   itemCount: number;
+  lastModifiedItemId: string | null;
   customerType: 'dine-in' | 'take-away';
   onChangeCustomerType: (type: 'dine-in' | 'take-away') => void;
   onRemoveVariation: (itemIds: string[]) => void;
@@ -24,6 +26,7 @@ export function GroupedOrderPanel({
   items,
   total,
   itemCount,
+  lastModifiedItemId,
   onRemoveVariation,
   onUpdateVariationQuantity,
   onRemoveBaseItem,
@@ -31,10 +34,35 @@ export function GroupedOrderPanel({
   onCheckout,
   onEditVariation,
 }: GroupedOrderPanelProps) {
-  const { formatPrice } = useCurrency();
+  const { formatPrice, symbol, getMinorUnit, code } = useCurrency();
   const { t } = useTranslation();
 
   const groupedItems = useMemo(() => groupOrderItems(items), [items]);
+
+  const minorUnit = getMinorUnit();
+  const displayTotal = total / Math.pow(10, minorUnit);
+  const currencyPosition = code === 'KHR' ? 'after' : 'before'; // Simplified logic from currency.ts
+
+  const lastModifiedSignature = useMemo(() => {
+    if (!lastModifiedItemId) return null;
+    const item = items.find(i => i.id === lastModifiedItemId);
+    if (!item) return null;
+    return `${item.menu_item_id}-${generateSignature(item.customizations, item.toppings)}`;
+  }, [lastModifiedItemId, items]);
+
+  // Auto-scroll to the last modified item
+  useEffect(() => {
+    if (lastModifiedSignature) {
+      // Small delay to ensure the DOM has updated
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`variation-${lastModifiedSignature}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [lastModifiedSignature, items.length]);
 
   return (
     <aside className="w-[550px] bg-pos-panel border-l border-border flex flex-col flex-shrink-0">
@@ -75,6 +103,7 @@ export function GroupedOrderPanel({
               key={group.menuItemId}
               group={group}
               formatPrice={formatPrice}
+              lastModifiedSignature={lastModifiedSignature}
               onRemoveVariation={onRemoveVariation}
               onUpdateVariationQuantity={onUpdateVariationQuantity}
               onRemoveBaseItem={onRemoveBaseItem}
@@ -93,7 +122,14 @@ export function GroupedOrderPanel({
           </div>
           <div className="text-right">
             <span className="text-sm text-muted-foreground">{t('order.total')}</span>
-            <div className="text-2xl font-bold">{formatPrice(total)}</div>
+            <div className="text-2xl font-bold">
+              <RollingCounter
+                value={displayTotal}
+                decimals={minorUnit}
+                prefix={currencyPosition === 'before' ? symbol : ''}
+                suffix={currencyPosition === 'after' ? symbol : ''}
+              />
+            </div>
           </div>
         </div>
 
@@ -123,6 +159,7 @@ export function GroupedOrderPanel({
 interface GroupedItemCardProps {
   group: GroupedOrderItem;
   formatPrice: (amount: number) => string;
+  lastModifiedSignature: string | null;
   onRemoveVariation: (itemIds: string[]) => void;
   onUpdateVariationQuantity: (itemIds: string[], delta: number) => void;
   onRemoveBaseItem: (menuItemId: string) => void;
@@ -132,6 +169,7 @@ interface GroupedItemCardProps {
 function GroupedItemCard({
   group,
   formatPrice,
+  lastModifiedSignature,
   onRemoveVariation,
   onUpdateVariationQuantity,
   onRemoveBaseItem,
@@ -145,8 +183,13 @@ function GroupedItemCard({
 
   // For single variation with no customizations, show compact single row
   if (isSingleVariation && hasNoCustomizations) {
+    const signature = `${group.menuItemId}-${singleVariation.signature}`;
+    const isHighlighted = signature === lastModifiedSignature;
     return (
-      <div className="grouped-item-card animate-fade-in">
+      <div
+        id={`variation-${signature}`}
+        className={`grouped-item-card animate-fade-in ${isHighlighted ? 'last-action-highlight' : ''}`}
+      >
         <div className="grouped-item-row">
           <div className="flex-1 min-w-0">
             <span className="font-medium text-base truncate">{group.menuItemName}</span>
@@ -186,32 +229,41 @@ function GroupedItemCard({
 
       {/* Variation Rows */}
       <div className="pt-2 space-y-1">
-        {group.variations.map(variation => (
-          <VariationRow
-            key={variation.signature}
-            variation={variation}
-            formatPrice={formatPrice}
-            onRemove={() => onRemoveVariation(variation.items.map(i => i.id))}
-            onUpdateQuantity={(delta) => onUpdateVariationQuantity(variation.items.map(i => i.id), delta)}
-            onEdit={() => onEditVariation(variation.items[0])}
-          />
-        ))}
+        {group.variations.map(variation => {
+          const signature = `${group.menuItemId}-${variation.signature}`;
+          return (
+            <VariationRow
+              key={variation.signature}
+              id={`variation-${signature}`}
+              variation={variation}
+              formatPrice={formatPrice}
+              isHighlighted={signature === lastModifiedSignature}
+              onRemove={() => onRemoveVariation(variation.items.map(i => i.id))}
+              onUpdateQuantity={(delta) => onUpdateVariationQuantity(variation.items.map(i => i.id), delta)}
+              onEdit={() => onEditVariation(variation.items[0])}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
 interface VariationRowProps {
+  id: string;
   variation: VariationGroup;
   formatPrice: (amount: number) => string;
+  isHighlighted?: boolean;
   onRemove: () => void;
   onUpdateQuantity: (delta: number) => void;
   onEdit: () => void;
 }
 
 function VariationRow({
+  id,
   variation,
   formatPrice,
+  isHighlighted,
   onRemove,
   onUpdateQuantity,
   onEdit,
@@ -226,7 +278,10 @@ function VariationRow({
   const variationText = allParts.length > 0 ? allParts.join(', ') : '(default)';
 
   return (
-    <div className="grouped-item-row">
+    <div
+      id={id}
+      className={`grouped-item-row rounded-lg px-2 transition-all ${isHighlighted ? 'last-action-highlight' : ''}`}
+    >
       {/* Customizations */}
       <div className="flex-1 min-w-0 pr-2">
         <span className="text-sm text-muted-foreground truncate block">

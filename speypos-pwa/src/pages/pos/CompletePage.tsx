@@ -119,14 +119,19 @@ export default function CompletePage() {
         `}
         >
           {/* Icon */}
-          <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center ${
-            voided ? 'bg-destructive/10' : 'bg-success/10'
-          }`}>
-            {voided ? (
-              <Ban className="w-14 h-14 text-destructive" />
-            ) : (
-              <CheckCircle className="w-14 h-14 text-success" />
+          <div className="relative w-24 h-24 mx-auto mb-6">
+            {!voided && showContent && (
+              <div className="absolute inset-0 rounded-full border-2 border-success animate-success-ripple" />
             )}
+            <div className={`w-full h-full rounded-full flex items-center justify-center ${
+              voided ? 'bg-destructive/10' : 'bg-success/10 animate-success-pop'
+            }`}>
+              {voided ? (
+                <Ban className="w-14 h-14 text-destructive" />
+              ) : (
+                <CheckCircle className="w-14 h-14 text-success" />
+              )}
+            </div>
           </div>
 
           <h1 className="text-3xl font-bold text-foreground mb-2">

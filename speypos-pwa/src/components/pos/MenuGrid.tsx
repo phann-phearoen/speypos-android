@@ -9,15 +9,24 @@ interface MenuGridProps {
   items: MenuItem[];
   onSelectItem: (item: MenuItem) => void;
   loading?: boolean;
+  tint?: string;
 }
 
-export function MenuGrid({ items, onSelectItem, loading }: MenuGridProps) {
+export function MenuGrid({ items, onSelectItem, loading, tint }: MenuGridProps) {
   const { formatPrice } = useCurrency();
   const { t } = useTranslation();
 
+  const style = {
+    backgroundColor: tint || 'transparent',
+    transition: 'background-color 0.5s ease-in-out',
+  } as React.CSSProperties;
+
   if (loading) {
     return (
-      <div className="flex-1 p-4 grid grid-cols-4 xl:grid-cols-5 gap-3 auto-rows-min pos-scroll">
+      <div
+        className="flex-1 p-4 grid grid-cols-4 xl:grid-cols-5 gap-3 auto-rows-min pos-scroll"
+        style={style}
+      >
         {Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="menu-item-card animate-pulse">
             <div className="w-16 h-16 rounded-lg bg-muted mb-2" />
@@ -31,7 +40,10 @@ export function MenuGrid({ items, onSelectItem, loading }: MenuGridProps) {
 
   if (items.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+      <div
+        className="flex-1 flex items-center justify-center text-muted-foreground"
+        style={style}
+      >
         <div className="text-center">
           <ImageOff className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p className="font-medium">{t('menu.noItems')}</p>
@@ -42,7 +54,10 @@ export function MenuGrid({ items, onSelectItem, loading }: MenuGridProps) {
   }
 
   return (
-    <div className="flex-1 p-4 grid grid-cols-4 xl:grid-cols-5 gap-3 auto-rows-min pos-scroll content-start">
+    <div
+      className="flex-1 p-4 grid grid-cols-4 xl:grid-cols-5 gap-3 auto-rows-min pos-scroll content-start"
+      style={style}
+    >
       {items.map(item => (
         <button
           key={item.id}

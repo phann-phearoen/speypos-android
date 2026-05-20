@@ -320,8 +320,10 @@ export default function PaymentPage() {
             {/* Total Display */}
             <div className="text-center mb-8">
               <p className="text-muted-foreground mb-2">{t('payment.amountDue')}</p>
-              <div className="text-5xl font-bold text-foreground">
-                {format(orderTotal)}
+              <div className="text-5xl font-bold text-foreground inline-block w-full">
+                <span className="animate-amount-breathing">
+                  {format(orderTotal)}
+                </span>
               </div>
             </div>
 

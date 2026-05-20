@@ -13,8 +13,10 @@ import { useConnectionStatus } from '@/hooks/useApi';
 import { useDisplaySession } from '@/hooks/useDisplaySession';
 import { useTranslation } from '@/lib/i18n';
 import { toast } from '@/hooks/use-toast';
+import { useTheme } from 'next-themes';
 import type { MenuItem, OrderItem, Customization, OrderItemTopping } from '@/types/pos';
 import { findMatchingItem } from '@/lib/orderGrouping';
+import { getCategoryTint, getCategoryTintDark } from '@/lib/categoryColors';
 
 // Generate unique ID for order items
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -41,6 +43,7 @@ export default function OrderPage() {
   const { refresh: refreshPendingActions } = usePendingActions();
   const { updateToOrdering, updateToIdle } = useDisplaySession();
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
 
   // Shift close preview modal state
   const [showClosePreview, setShowClosePreview] = useState(false);
@@ -55,6 +58,7 @@ export default function OrderPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>(
     () => incomingState?.orderItems || []
   );
+  const [lastModifiedItemId, setLastModifiedItemId] = useState<string | null>(null);
   const [customerType, setCustomerType] = useState<'dine-in' | 'take-away'>(
     () => incomingState?.customerType || 'take-away'
   );
@@ -120,6 +124,12 @@ export default function OrderPage() {
     return menuItems.filter((item) => item.category_ids?.includes(selectedCategory));
   }, [menuItems, selectedCategory]);
 
+  const categoryTint = useMemo(() => {
+    return resolvedTheme === 'dark'
+      ? getCategoryTintDark(selectedCategory)
+      : getCategoryTint(selectedCategory);
+  }, [selectedCategory, resolvedTheme]);
+
   // Order item management - with auto-merge for matching items
   const addItem = useCallback(
     (menuItem: MenuItem, customizations: Customization[] = [], toppings: OrderItemTopping[] = [], quantity: number = 1) => {
@@ -129,6 +139,7 @@ export default function OrderPage() {
         
         if (existingItem) {
           // Merge: increment quantity of existing item
+          setLastModifiedItemId(existingItem.id);
           return prev.map((item) =>
             item.id === existingItem.id
               ? { 
@@ -145,8 +156,9 @@ export default function OrderPage() {
         const toppingTotal = toppings.reduce((sum, t) => sum + t.total_price, 0);
         const unitPrice = menuItem.price + customizationTotal + toppingTotal;
 
+        const newItemId = generateId();
         const newItem: OrderItem = {
-          id: generateId(),
+          id: newItemId,
           menu_item_id: menuItem.id,
           menu_item_name: menuItem.name,
           quantity,
@@ -156,6 +168,7 @@ export default function OrderPage() {
           subtotal: unitPrice * quantity,
         };
 
+        setLastModifiedItemId(newItemId);
         return [...prev, newItem];
       });
     },
@@ -172,6 +185,7 @@ export default function OrderPage() {
       return;
     }
 
+    setLastModifiedItemId(itemId);
     setOrderItems((prev) =>
       prev.map((item) =>
         item.id === itemId
@@ -193,6 +207,7 @@ export default function OrderPage() {
       const targetItem = prev.find((item) => itemIds.includes(item.id));
       if (!targetItem) return prev;
 
+      setLastModifiedItemId(targetItem.id);
       const newQuantity = targetItem.quantity + delta;
       
       if (newQuantity <= 0) {
@@ -219,6 +234,7 @@ export default function OrderPage() {
   const clearOrder = useCallback(() => {
     setOrderItems([]);
     setCustomerType('take-away');
+    setLastModifiedItemId(null);
   }, []);
 
   // Navigation handlers
@@ -400,6 +416,7 @@ export default function OrderPage() {
               items={filteredItems}
               onSelectItem={handleItemSelect}
               loading={isLoading}
+              tint={categoryTint}
             />
           </div>
         ) : (
@@ -422,6 +439,7 @@ export default function OrderPage() {
           items={orderItems}
           total={orderTotal}
           itemCount={itemCount}
+          lastModifiedItemId={lastModifiedItemId}
           customerType={customerType}
           onChangeCustomerType={setCustomerType}
           onRemoveVariation={removeVariation}

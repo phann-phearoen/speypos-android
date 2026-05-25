@@ -67,7 +67,11 @@ class ReceiptRenderer {
             // Order Info
             paint.textSize = FONT_SIZE_NORMAL
             paint.typeface = Typeface.DEFAULT
-            val orderId = order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
+            val orderId = if (order.has("sequential_id")) {
+                String.format(Locale.US, "#%03d", order.optInt("sequential_id"))
+            } else {
+                order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
+            }
             canvas.drawText(getTranslation("receipt.order_id", language).replace("{orderId}", orderId), 0f, y, paint)
             y += FONT_SIZE_NORMAL + LINE_SPACING
             

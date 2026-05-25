@@ -1064,6 +1064,25 @@ class NativeConfigStore(private val context: Context) {
       .put("status", "pending")
       .put("created_at", now)
 
+    synchronized(globalFileLock) {
+      val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
+      var seqId = 1
+      var shiftFound = false
+      for (i in 0 until shifts.length()) {
+        val s = shifts.optJSONObject(i) ?: continue
+        if (s.optString("id") == shiftId) {
+          seqId = s.optInt("next_order_sequence", 1)
+          s.put("next_order_sequence", seqId + 1)
+          shiftFound = true
+          break
+        }
+      }
+      if (shiftFound) {
+        persistShifts(shifts)
+      }
+      newOrder.put("sequential_id", seqId)
+    }
+
     val current = readOrders()
     val updated = JSONArray().put(newOrder)
     for (index in 0 until current.length()) {
@@ -1722,6 +1741,7 @@ class NativeConfigStore(private val context: Context) {
       .put("started_at", now)
       .put("ended_at", JSONObject.NULL)
       .put("status", "open")
+      .put("next_order_sequence", 1)
 
     val updated = JSONArray()
     updated.put(newShift)

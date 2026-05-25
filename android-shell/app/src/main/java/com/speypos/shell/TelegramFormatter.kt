@@ -23,7 +23,11 @@ class TelegramFormatter {
             val sb = StringBuilder()
             
             // Title
-            val orderId = order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
+            val orderId = if (order.has("sequential_id")) {
+                String.format(Locale.US, "#%03d", order.optInt("sequential_id"))
+            } else {
+                order.optString("id").split("-").lastOrNull()?.takeLast(6) ?: "N/A"
+            }
             sb.append(getTranslation(titleKey, language).replace("{orderId}", orderId))
             sb.append(indicator).append("\n\n")
 

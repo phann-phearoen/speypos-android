@@ -1,0 +1,88 @@
+enhancements:
+  - id: button_animation_click
+    title: "Button Animation on Click"
+    description: "Standardized physical feedback for all interactive elements."
+    technical_details:
+      trigger: "On PointerDown / TouchDown"
+      animation:
+        type: "Scale & Brightness"
+        scale_factor: 1.02
+        brightness_increase: "10%"
+        duration: "150ms"
+        easing: "CubicBezier(0.4, 0, 0.2, 1)"
+      implementation_notes: "Apply to a global Style for Button and Grid-based cards to ensure consistency."
+
+  - id: automatic_category_background
+    title: "Automatic Background Color per Category"
+    description: "Visual zoning to help users orient themselves via peripheral vision."
+    technical_details:
+      logic: "Deterministic Hue Selection via ID hashing."
+      algorithm: |
+        - Hues Table: [210, 160, 45, 15, 280, 330, 120, 190]
+        - Hashing: Iterate through UUID chars, update hash: hash = charCode + ((hash << 5) - hash)
+        - Mapping: hue = HuesTable[Math.Abs(hash) % HuesTable.Length]
+      application_target: "MenuGrid background or Category Sidebar."
+      theming:
+        light_mode: "hsl(hue, 70%, 96%)"
+        dark_mode: "hsl(hue, 30%, 12%)"
+      transition:
+        type: "Crossfade"
+        duration: "500ms"
+      implementation_notes: "This algorithm ensures Category ID 'xyz' results in the same color on Android, Web, and Windows."
+
+  - id: total_amount_odometer
+    title: "Total Amount Odometer"
+    description: "Animated rolling counter for the order total to signal changes."
+    technical_details:
+      trigger: "On OrderTotal changed"
+      animation_type: "Rolling Digits (Odometer style)"
+      digit_duration: "400ms"
+      easing: "EaseInOut"
+      implementation_notes: "Create a custom control that vertically slides digit stacks (0-9) to the new value."
+
+  - id: amount_due_animation
+    title: "Amount Due Animation"
+    description: "Attention-grabbing animation for the final amount in the payment screen."
+    technical_details:
+      trigger: "On PaymentScreen visible"
+      animation:
+        type: "Breathing / Subtle Pulse"
+        scale_range: [1.0, 1.05]
+        glow_effect: "Subtle accent-colored drop shadow"
+        frequency: "2s infinite"
+      implementation_notes: "Helps the user focus on the primary data point (what the customer owes)."
+
+  - id: payment_complete_animation
+    title: "Payment Complete Animation"
+    description: "Celebratory visual feedback for successful transactions."
+    technical_details:
+      trigger: "On PaymentSuccess"
+      animations:
+        - target: "Success Icon"
+          type: "Pop / Scale Spring"
+          overshoot: 1.1
+        - target: "Background"
+          type: "Radial Ripple"
+          origin: "Center of Success Icon"
+          color: "SuccessGreen (Opacity: 0.1)"
+      implementation_notes: "Sync this visual with the high-priority success audio chime (ID 93)."
+
+  - id: currently_active_item_highlight
+    title: "Currently Active Item Highlight"
+    description: "Visual anchoring for the most recently modified item in the order list."
+    technical_details:
+      trigger: "On Item added or Quantity updated"
+      visual_feedback:
+        type: "Background Glow & Border Flash"
+        color: "hsl(var(--accent) / 0.15)"
+        border_color: "hsl(var(--accent) / 0.4)"
+        duration: "2s (Fading out)"
+      auto_scroll:
+        behavior: "Smooth Scroll to View"
+        trigger: "When item is added/updated and not fully visible in the scroll viewport."
+      implementation_notes: "Crucial for fast-paced ordering to prevent double-entry and provide instant status confirmation."
+
+cross_platform_goals:
+  - "Maintain a 'physical' feel where every action has a distinct reaction."
+  - "Reduce cognitive load by communicating state changes through motion and color rather than text."
+  - "Ensure zero-latency responsiveness for high-speed operation."

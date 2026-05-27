@@ -1,0 +1,108 @@
+enhancements:
+  - id: amount_due_clean_animation
+    title: "Amount Due Clean Attention Animation"
+    priority: high
+    objective: "Draw attention to the amount due using a clean, readable motion style without blurred background effects."
+    trigger: "When Payment screen becomes visible"
+    visual_direction:
+      style: "Subtle breathing scale + number color pulse"
+      avoid: "Blurred glow backgrounds and heavy halo effects"
+    animation:
+      container_breathe:
+        scale_from: 1.00
+        scale_to: 1.03
+        duration_ms: 2000
+        easing: "FastOutSlowIn"
+        repeat: infinite
+      amount_text_pulse:
+        color_from: "theme.onSurface"
+        color_to: "theme.primary"
+        duration_ms: 2000
+        easing: "FastOutSlowIn"
+        repeat: infinite
+    android_implementation:
+      framework: "Jetpack Compose"
+      recommended_apis:
+        - "rememberInfiniteTransition"
+        - "animateFloat"
+        - "animateColor"
+        - "graphicsLayer(scaleX, scaleY)"
+      structure:
+        container: "AmountDueFocusContainer"
+        value_text: "AmountDueValueText"
+      notes:
+        - "Apply scale to container only; keep value text crisp."
+        - "Animate text color directly for focus; do not use blur filters."
+        - "Keep number formatting stable to avoid visual jitter."
+    accessibility:
+      reduced_motion:
+        behavior: "Disable scale and color animation; keep static final state"
+      contrast:
+        requirement: "Ensure pulsed color remains WCAG AA against payment background"
+
+  - id: payment_complete_page_animation
+    title: "Payment Complete Confirmation Sequence"
+    priority: high
+    objective: "Announce successful order completion with a crisp, center-focused celebration sequence."
+    trigger: "On payment success event"
+    visual_direction:
+      style: "Crisp rings + icon pop + staged content reveal"
+      avoid: "Large blurred radial green backgrounds"
+    sequence_timeline:
+      - step: "Icon appears with short pop"
+        start_ms: 80
+        duration_ms: 420
+      - step: "Dual rings expand and fade from icon center"
+        start_ms: 120
+        duration_ms: 620
+      - step: "Heading fades/slides in"
+        start_ms: 220
+        duration_ms: 380
+      - step: "Summary card fades/slides in"
+        start_ms: 320
+        duration_ms: 420
+    animation:
+      icon_pop:
+        scale_from: 0.90
+        overshoot: 1.08
+        settle_to: 1.00
+        easing: "FastOutSlowIn"
+      rings:
+        count: 2
+        stroke_width_dp: 2
+        scale_from: 0.92
+        scale_to: 1.50
+        alpha_fade: "1.0 -> 0.0"
+        second_ring_delay_ms: 120
+      content_reveal:
+        translateY_px: 8
+        alpha: "0 -> 1"
+        easing: "LinearOutSlowIn"
+    android_implementation:
+      framework: "Jetpack Compose"
+      recommended_apis:
+        - "AnimatedVisibility"
+        - "updateTransition"
+        - "animateFloatAsState"
+        - "Canvas (for ring strokes)"
+      layout_constraints:
+        - "Ring center must match success icon center."
+        - "Parent shell must allow overflow so ring top is never clipped."
+        - "Keep icon size fixed; increase visual wrapper to create breathing room."
+      component_structure:
+        - "SuccessVisualWrapper (relative anchor)"
+        - "SuccessRingsLayer (non-interactive)"
+        - "SuccessIconBadge"
+        - "SuccessHeading"
+        - "SuccessSummaryCard"
+    accessibility:
+      reduced_motion:
+        behavior: "Disable ring expansion and icon pop; show immediate success state"
+      semantics:
+        announcement: "Announce payment complete/order placed via accessibility live region"
+
+acceptance_criteria:
+  - "Amount Due animation is clean, readable, and blur-free."
+  - "Payment Complete rings are centered on icon with no clipping at top edge."
+  - "Motion sequence completes in under 1 second for high-speed POS usage."
+  - "Reduced motion mode is respected for both refinements."

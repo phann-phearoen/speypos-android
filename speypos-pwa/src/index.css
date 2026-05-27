@@ -390,36 +390,71 @@
     border-style: solid;
   }
 
-  /* Amount Breathing */
-  @keyframes amount-breathing {
-    0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 0px transparent); }
-    50% { transform: scale(1.05); opacity: 0.95; filter: drop-shadow(0 0 15px hsl(var(--accent) / 0.4)); }
+  /* Amount Due Clean Attention Animation */
+  @keyframes amount-due-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
   }
 
-  .animate-amount-breathing {
+  @keyframes amount-due-color-pulse {
+    0%, 100% { color: hsl(var(--foreground)); }
+    50% { color: hsl(var(--accent)); }
+  }
+
+  .animate-amount-due-focus {
     display: inline-block;
-    animation: amount-breathing 2s ease-in-out infinite;
-    will-change: transform, filter;
+    animation:
+      amount-due-breathe 2s cubic-bezier(0.4, 0, 0.2, 1) infinite,
+      amount-due-color-pulse 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    will-change: transform, color;
   }
 
-  /* Success Celebratory Animations */
-  @keyframes success-pop {
-    0% { transform: scale(0.5); opacity: 0; }
-    70% { transform: scale(1.1); }
+  /* Payment Complete Confirmation Sequence */
+  @keyframes success-icon-pop {
+    0% { transform: scale(0.9); opacity: 0; }
+    50% { transform: scale(1.08); opacity: 1; }
     100% { transform: scale(1); opacity: 1; }
   }
 
-  @keyframes success-ripple {
-    0% { transform: scale(1); opacity: 0.5; border-width: 4px; }
-    100% { transform: scale(2); opacity: 0; border-width: 1px; }
+  @keyframes success-ring-expand {
+    0% { transform: scale(0.92); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
   }
 
-  .animate-success-pop {
-    animation: success-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  @keyframes staged-reveal {
+    0% { transform: translateY(8px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
   }
 
-  .animate-success-ripple {
-    animation: success-ripple 1s cubic-bezier(0, 0, 0.2, 1) forwards;
+  .animate-success-icon {
+    animation: success-icon-pop 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-success-ring {
+    animation: success-ring-expand 0.62s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-staged-reveal {
+    opacity: 0;
+    animation: staged-reveal 0.38s cubic-bezier(0, 0, 0.2, 1) forwards;
+  }
+
+  .animation-delay-80 { animation-delay: 80ms; }
+  .animation-delay-120 { animation-delay: 120ms; }
+  .animation-delay-220 { animation-delay: 220ms; }
+  .animation-delay-240 { animation-delay: 240ms; }
+  .animation-delay-320 { animation-delay: 320ms; }
+
+  /* Accessibility: Reduced Motion */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-amount-due-focus,
+    .animate-success-icon,
+    .animate-success-ring,
+    .animate-staged-reveal {
+      animation: none !important;
+      transform: none !important;
+      opacity: 1 !important;
+    }
   }
 
   @media (orientation: landscape) and (max-height: 820px) {

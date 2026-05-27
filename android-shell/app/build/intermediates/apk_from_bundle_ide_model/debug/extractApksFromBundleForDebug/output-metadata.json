@@ -11,6 +11,12 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
+      "outputFile": "../../../extracted_apks/debug/extractApksFromBundleForDebug/base-en.apk"
+    },
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
       "outputFile": "../../../extracted_apks/debug/extractApksFromBundleForDebug/base-master_2.apk"
     },
     {

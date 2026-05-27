@@ -280,7 +280,7 @@ function VariationRow({
   return (
     <div
       id={id}
-      className={`grouped-item-row rounded-lg px-2 transition-all ${isHighlighted ? 'last-action-highlight' : ''}`}
+      className={`grouped-item-row rounded-[0.35rem] px-2 transition-all ${isHighlighted ? 'last-action-highlight' : ''}`}
     >
       {/* Customizations */}
       <div className="flex-1 min-w-0 pr-2">

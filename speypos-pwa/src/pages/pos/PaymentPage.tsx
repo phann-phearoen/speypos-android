@@ -321,7 +321,7 @@ export default function PaymentPage() {
             <div className="text-center mb-8">
               <p className="text-muted-foreground mb-2">{t('payment.amountDue')}</p>
               <div className="text-5xl font-bold text-foreground inline-block w-full">
-                <span className="animate-amount-breathing">
+                <span className="animate-amount-due-focus">
                   {format(orderTotal)}
                 </span>
               </div>

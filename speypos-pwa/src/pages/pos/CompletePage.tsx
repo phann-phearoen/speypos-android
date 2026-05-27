@@ -111,21 +111,22 @@ export default function CompletePage() {
         onCloseShift={handleCloseShift}
       />
 
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div
-          className={`
-          text-center max-w-md transition-all duration-500
-          ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-        `}
-        >
-          {/* Icon */}
-          <div className="relative w-24 h-24 mx-auto mb-6">
+      <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
+        <div className="text-center max-w-md w-full relative">
+          {/* Success Visual Wrapper */}
+          <div className="relative w-32 h-32 mx-auto mb-6 flex items-center justify-center">
+            {/* Dual Rings Layer */}
             {!voided && showContent && (
-              <div className="absolute inset-0 rounded-full border-2 border-success animate-success-ripple" />
+              <>
+                <div className="absolute inset-0 rounded-full border-2 border-success/40 animate-success-ring animation-delay-120" />
+                <div className="absolute inset-0 rounded-full border-2 border-success/20 animate-success-ring animation-delay-240" />
+              </>
             )}
-            <div className={`w-full h-full rounded-full flex items-center justify-center ${
-              voided ? 'bg-destructive/10' : 'bg-success/10 animate-success-pop'
-            }`}>
+
+            {/* Success/Void Icon */}
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center z-10 relative shadow-sm ${
+              voided ? 'bg-destructive/10' : 'bg-success/10'
+            } ${showContent ? 'animate-success-icon animation-delay-80' : 'opacity-0'}`}>
               {voided ? (
                 <Ban className="w-14 h-14 text-destructive" />
               ) : (
@@ -134,15 +135,20 @@ export default function CompletePage() {
             </div>
           </div>
 
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            {voided ? t('complete.voided') : t('complete.success')}
-          </h1>
-          <p className="text-muted-foreground mb-8">
-            {voided ? t('complete.voidedDesc') : t('complete.receiptSent')}
-          </p>
+          {/* Heading */}
+          <div className={showContent ? 'animate-staged-reveal animation-delay-220' : 'opacity-0'}>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              {voided ? t('complete.voided') : t('complete.success')}
+            </h1>
+            <p className="text-muted-foreground mb-8">
+              {voided ? t('complete.voidedDesc') : t('complete.receiptSent')}
+            </p>
+          </div>
 
-          {/* Transaction Summary */}
-          <div className="bg-card rounded-xl border border-border p-6 mb-8">
+          {/* Transaction Summary Card */}
+          <div className={`bg-card rounded-xl border border-border p-6 mb-8 shadow-sm ${
+            showContent ? 'animate-staged-reveal animation-delay-320' : 'opacity-0'
+          }`}>
             <div className="space-y-3 text-left">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{t('complete.total')}</span>
@@ -166,8 +172,8 @@ export default function CompletePage() {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="space-y-3">
+          {/* Actions - Fast Reveal */}
+          <div className={`space-y-3 ${showContent ? 'animate-staged-reveal animation-delay-320' : 'opacity-0'}`}>
             <button
               onClick={handleNewOrder}
               className="w-full pos-btn py-4 rounded-xl bg-accent text-accent-foreground font-semibold text-lg shadow-md gap-2"

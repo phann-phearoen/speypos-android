@@ -390,7 +390,7 @@ export default function ShiftPage() {
                     ) : (prevDayStatus?.isEnforced && !prevDayStatus?.isClosed) ? (
                       <>
                         <AlertCircle className="w-5 h-5" />
-                        {t('shift.openShift')} (Locked)
+                        {t('shift.openShift')}
                       </>
                     ) : (
                       <>
@@ -412,7 +412,7 @@ export default function ShiftPage() {
                       <CalendarCheck className="w-4 h-4" />
                       {t('shift.closeDay')}
                     </Button>
-                    {prevDayStatus?.todayClosedShiftsCount && prevDayStatus.todayClosedShiftsCount >= 2 && !prevDayStatus.isTodayClosed && (
+                    {(prevDayStatus?.todayClosedShiftsCount ?? 0) >= 2 && !prevDayStatus?.isTodayClosed && (
                       <p className="text-xs text-warning font-medium text-center mt-2 italic">
                         {t('shift.closeDayReminder')}
                       </p>

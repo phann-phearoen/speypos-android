@@ -22,6 +22,8 @@ import org.json.JSONObject
 class NativeConfigStore(private val context: Context) {
 
   companion object {
+    private const val TAG = "NativeConfigStore"
+    private val actionLock = ReentrantLock()
     private val printLock = ReentrantLock()
     private val globalFileLock = Any()
     
@@ -2605,6 +2607,45 @@ class NativeConfigStore(private val context: Context) {
     persistArray(PREF_NATIVE_DAY_CLOSES_JSON, data)
   }
 
+  private fun markEntityAsReported(type: String, idOrDate: String) {
+    val now = System.currentTimeMillis()
+    when (type) {
+      ACTION_TYPE_ORDER_REPORT -> {
+        val orders = readOrders()
+        for (i in 0 until orders.length()) {
+          val o = orders.optJSONObject(i) ?: continue
+          if (o.optString("id") == idOrDate) {
+            o.put("telegram_reported_at", now)
+            persistOrders(orders)
+            return
+          }
+        }
+      }
+      ACTION_TYPE_SHIFT_REPORT -> {
+        val shifts = readShifts()
+        for (i in 0 until shifts.length()) {
+          val s = shifts.optJSONObject(i) ?: continue
+          if (s.optString("id") == idOrDate) {
+            s.put("telegram_reported_at", now)
+            persistShifts(shifts)
+            return
+          }
+        }
+      }
+      ACTION_TYPE_DAY_CLOSE_REPORT -> {
+        val dayCloses = readDayCloses()
+        for (i in 0 until dayCloses.length()) {
+          val dc = dayCloses.optJSONObject(i) ?: continue
+          if (dc.optString("date") == idOrDate) {
+            dc.put("telegram_reported_at", now)
+            persistDayCloses(dayCloses)
+            return
+          }
+        }
+      }
+    }
+  }
+
   private fun readMigrations(): JSONArray {
     return readArray(PREF_NATIVE_MIGRATIONS_JSON)
   }
@@ -2703,158 +2744,197 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun processPendingActions(context: String = "manual", maxAttemptsPerRun: Int = 20): JSONObject {
-    val now = System.currentTimeMillis()
-    val actions = readPendingActions()
-    val updatedActions = JSONArray()
+    if (!actionLock.tryLock()) {
+      Log.i(TAG, "processPendingActions is already running, skipping (context=$context)")
+      return JSONObject().put("status", "already_running")
+    }
 
-    var processed = 0
-    var succeeded = 0
-    var retried = 0
-    var deadLettered = 0
+    try {
+      val now = System.currentTimeMillis()
+      val actions = readPendingActions()
+      val updatedActions = JSONArray()
 
-    for (index in 0 until actions.length()) {
-      val action = actions.optJSONObject(index) ?: continue
-      val status = action.optString("status")
-      val nextAttemptAt = action.optLong("next_attempt_at", 0L)
-      val eligible = status == ACTION_STATUS_PENDING || status == ACTION_STATUS_RETRYING
+      var processed = 0
+      var succeeded = 0
+      var retried = 0
+      var deadLettered = 0
+      var skipped = 0
 
-      if (!eligible || processed >= maxAttemptsPerRun || nextAttemptAt > now) {
-        updatedActions.put(action)
-        continue
-      }
+      for (index in 0 until actions.length()) {
+        val action = actions.optJSONObject(index) ?: continue
+        val status = action.optString("status")
+        val nextAttemptAt = action.optLong("next_attempt_at", 0L)
+        val eligible = status == ACTION_STATUS_PENDING || status == ACTION_STATUS_RETRYING
 
-      val processingAction = JSONObject(action.toString())
-        .put("status", ACTION_STATUS_PROCESSING)
-        .put("updated_at", now)
+        if (!eligible || processed >= maxAttemptsPerRun || nextAttemptAt > now) {
+          updatedActions.put(action)
+          continue
+        }
 
-      try {
-        val type = processingAction.optString("type")
-        val payload = processingAction.optJSONObject("payload") ?: JSONObject()
+        val processingAction = JSONObject(action.toString())
+          .put("status", ACTION_STATUS_PROCESSING)
+          .put("updated_at", now)
 
-        when (type) {
-          ACTION_TYPE_CLOUD_SYNC -> {
-          }
-          ACTION_TYPE_ORDER_REPORT -> {
-            val orderId = payload.optString("order_id")
-            val order = findOrderById(readOrders(), orderId)
-            if (order != null) {
-              val token = getTelegramToken()
-              val settings = getTelegramSettings()
-              val intents = settings.optJSONArray("intents") ?: JSONArray()
-              var chatId = ""
-              for (i in 0 until intents.length()) {
-                val intent = intents.optJSONObject(i) ?: continue
-                if (intent.optString("intent") == "ORDER_TRACKER" && intent.optBoolean("enabled", false)) {
-                  chatId = intent.optString("chat_id")
+        try {
+          val type = processingAction.optString("type")
+          val payload = processingAction.optJSONObject("payload") ?: JSONObject()
+
+          when (type) {
+            ACTION_TYPE_ORDER_REPORT -> {
+              val orderId = payload.optString("order_id")
+              val order = findOrderById(readOrders(), orderId)
+              if (order != null) {
+                if (order.has("telegram_reported_at")) {
+                  Log.i(TAG, "Order $orderId already reported, skipping.")
+                  skipped++
+                } else {
+                  val token = getTelegramToken()
+                  val settings = getTelegramSettings()
+                  val intents = settings.optJSONArray("intents") ?: JSONArray()
+                  var chatId = ""
+                  for (i in 0 until intents.length()) {
+                    val intent = intents.optJSONObject(i) ?: continue
+                    if (intent.optString("intent") == "ORDER_TRACKER" && intent.optBoolean("enabled", false)) {
+                      chatId = intent.optString("chat_id")
+                      break
+                    }
+                  }
+                  if (token.isNotBlank() && chatId.isNotBlank()) {
+                    val store = readStore()
+                    val lang = store.optString("language", "en")
+                    val curr = store.optString("currency", "USD")
+                    val message = TelegramFormatter.formatOrderMessage(order, status == ACTION_STATUS_RETRYING, lang, curr)
+                    TelegramReporter.sendMessage(token, chatId, message)
+                    markEntityAsReported(ACTION_TYPE_ORDER_REPORT, orderId)
+                  }
+                }
+              }
+            }
+            ACTION_TYPE_SHIFT_REPORT -> {
+              val actionType = payload.optString("action")
+              if (actionType == "close") {
+                val shiftId = payload.optString("shift_id")
+                val shift = findShiftById(readShifts(), shiftId)
+                if (shift != null) {
+                  if (shift.has("telegram_reported_at")) {
+                    Log.i(TAG, "Shift $shiftId already reported, skipping.")
+                    skipped++
+                  } else {
+                    val enrichedShift: JSONObject = JSONObject(shift.toString()).put("summary", computeShiftSummary(shiftId))
+                    val token = getTelegramToken()
+                    val settings = getTelegramSettings()
+                    val intents = settings.optJSONArray("intents") ?: JSONArray()
+                    var chatId = ""
+                    for (i in 0 until intents.length()) {
+                      val intent = intents.optJSONObject(i) ?: continue
+                      if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
+                        chatId = intent.optString("chat_id")
+                        break
+                      }
+                    }
+                    if (token.isNotBlank() && chatId.isNotBlank()) {
+                      val store = readStore()
+                      val lang = store.optString("language", "en")
+                      val curr = store.optString("currency", "USD")
+                      val message = TelegramFormatter.formatShiftCloseMessage(enrichedShift, status == ACTION_STATUS_RETRYING, lang, curr)
+                      TelegramReporter.sendMessage(token, chatId, message)
+                      markEntityAsReported(ACTION_TYPE_SHIFT_REPORT, shiftId)
+                    }
+                  }
+                }
+              }
+            }
+            ACTION_TYPE_DAY_CLOSE_REPORT -> {
+              val date = payload.optString("date")
+              val dayCloses = readDayCloses()
+              var dayClose: JSONObject? = null
+              for (i in 0 until dayCloses.length()) {
+                val dc = dayCloses.optJSONObject(i) ?: continue
+                if (dc.optString("date") == date) {
+                  dayClose = dc
                   break
                 }
               }
-              if (token.isNotBlank() && chatId.isNotBlank()) {
-                val store = readStore()
-                val lang = store.optString("language", "en")
-                val curr = store.optString("currency", "USD")
-                val message = TelegramFormatter.formatOrderMessage(order, status == ACTION_STATUS_RETRYING, lang, curr)
-                TelegramReporter.sendMessage(token, chatId, message)
-              }
-            }
-          }
-          ACTION_TYPE_SHIFT_REPORT -> {
-            val action = payload.optString("action")
-            if (action == "close") {
-              val shiftId = payload.optString("shift_id")
-              val shift = findShiftById(readShifts(), shiftId)
-              if (shift != null) {
-                val enrichedShift: JSONObject = JSONObject(shift.toString()).put("summary", computeShiftSummary(shiftId))
-                val token = getTelegramToken()
-                val settings = getTelegramSettings()
-                val intents = settings.optJSONArray("intents") ?: JSONArray()
-                var chatId = ""
-                for (i in 0 until intents.length()) {
-                  val intent = intents.optJSONObject(i) ?: continue
-                  if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
-                    chatId = intent.optString("chat_id")
-                    break
+
+              if (dayClose != null) {
+                if (dayClose.has("telegram_reported_at")) {
+                  Log.i(TAG, "Day close for $date already reported, skipping.")
+                  skipped++
+                } else {
+                  val daySummary = computeDaySummary(date)
+                  val token = getTelegramToken()
+                  val settings = getTelegramSettings()
+                  val intents = settings.optJSONArray("intents") ?: JSONArray()
+                  var chatId = ""
+                  for (i in 0 until intents.length()) {
+                    val intent = intents.optJSONObject(i) ?: continue
+                    if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
+                      chatId = intent.optString("chat_id")
+                      break
+                    }
+                  }
+                  if (token.isNotBlank() && chatId.isNotBlank()) {
+                    val store = readStore()
+                    val lang = store.optString("language", "en")
+                    val curr = store.optString("currency", "USD")
+                    val message = TelegramFormatter.formatDayCloseMessage(daySummary, lang, curr)
+                    TelegramReporter.sendMessage(token, chatId, message)
+                    markEntityAsReported(ACTION_TYPE_DAY_CLOSE_REPORT, date)
                   }
                 }
-                if (token.isNotBlank() && chatId.isNotBlank()) {
-                  val store = readStore()
-                  val lang = store.optString("language", "en")
-                  val curr = store.optString("currency", "USD")
-                  val message = TelegramFormatter.formatShiftCloseMessage(enrichedShift, status == ACTION_STATUS_RETRYING, lang, curr)
-                  TelegramReporter.sendMessage(token, chatId, message)
-                }
               }
             }
-          }
-          ACTION_TYPE_DAY_CLOSE_REPORT -> {
-            val date = payload.optString("date", LocalDate.now().toString())
-            val daySummary = computeDaySummary(date)
-            val token = getTelegramToken()
-            val settings = getTelegramSettings()
-            val intents = settings.optJSONArray("intents") ?: JSONArray()
-            var chatId = ""
-            for (i in 0 until intents.length()) {
-              val intent = intents.optJSONObject(i) ?: continue
-              if (intent.optString("intent") == "SHIFT_TRACKER" && intent.optBoolean("enabled", false)) {
-                chatId = intent.optString("chat_id")
-                break
-              }
-            }
-            if (token.isNotBlank() && chatId.isNotBlank()) {
-              val store = readStore()
-              val lang = store.optString("language", "en")
-              val curr = store.optString("currency", "USD")
-              val message = TelegramFormatter.formatDayCloseMessage(daySummary, lang, curr)
-              TelegramReporter.sendMessage(token, chatId, message)
+            else -> {
+              Log.w("PendingAction", "Unknown action type: $type")
             }
           }
-          else -> {
-            Log.w("PendingAction", "Unknown action type: $type")
+
+          val successAction = JSONObject(processingAction.toString())
+            .put("status", ACTION_STATUS_SUCCEEDED)
+            .put("last_error", JSONObject.NULL)
+            .put("updated_at", now)
+          updatedActions.put(successAction)
+          succeeded += 1
+        } catch (error: Exception) {
+          val attempts = processingAction.optInt("attempt_count", 0) + 1
+          val maxAttempts = processingAction.optInt("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
+          val message = error.message ?: "Action failed"
+
+          if (attempts >= maxAttempts) {
+            val dead = JSONObject(processingAction.toString())
+              .put("status", ACTION_STATUS_DEAD_LETTER)
+              .put("attempt_count", attempts)
+              .put("last_error", message)
+              .put("updated_at", now)
+            updatedActions.put(dead)
+            deadLettered += 1
+          } else {
+            val backoffMs = computeBackoffMs(attempts)
+            val retry = JSONObject(processingAction.toString())
+              .put("status", ACTION_STATUS_RETRYING)
+              .put("attempt_count", attempts)
+              .put("next_attempt_at", now + backoffMs)
+              .put("last_error", message)
+              .put("updated_at", now)
+            updatedActions.put(retry)
+            retried += 1
           }
         }
-
-        val successAction = JSONObject(processingAction.toString())
-          .put("status", ACTION_STATUS_SUCCEEDED)
-          .put("last_error", JSONObject.NULL)
-          .put("updated_at", now)
-        updatedActions.put(successAction)
-        succeeded += 1
-      } catch (error: Exception) {
-        val attempts = processingAction.optInt("attempt_count", 0) + 1
-        val maxAttempts = processingAction.optInt("max_attempts", DEFAULT_MAX_PRINT_ATTEMPTS)
-        val message = error.message ?: "Action failed"
-
-        if (attempts >= maxAttempts) {
-          val dead = JSONObject(processingAction.toString())
-            .put("status", ACTION_STATUS_DEAD_LETTER)
-            .put("attempt_count", attempts)
-            .put("last_error", message)
-            .put("updated_at", now)
-          updatedActions.put(dead)
-          deadLettered += 1
-        } else {
-          val backoffMs = computeBackoffMs(attempts)
-          val retry = JSONObject(processingAction.toString())
-            .put("status", ACTION_STATUS_RETRYING)
-            .put("attempt_count", attempts)
-            .put("next_attempt_at", now + backoffMs)
-            .put("last_error", message)
-            .put("updated_at", now)
-          updatedActions.put(retry)
-          retried += 1
-        }
+        processed += 1
       }
-      processed += 1
+
+      persistPendingActions(updatedActions)
+
+      return JSONObject()
+        .put("context", context)
+        .put("processed", processed)
+        .put("succeeded", succeeded)
+        .put("retried", retried)
+        .put("dead_lettered", deadLettered)
+        .put("skipped", skipped)
+    } finally {
+      actionLock.unlock()
     }
-
-    persistPendingActions(updatedActions)
-
-    return JSONObject()
-      .put("context", context)
-      .put("processed", processed)
-      .put("succeeded", succeeded)
-      .put("retried", retried)
-      .put("dead_lettered", deadLettered)
   }
 
   fun getPendingActionsStatus(): JSONObject {

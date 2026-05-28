@@ -192,8 +192,9 @@ class TelegramFormatter {
                     val keys = pBreakdown.keys()
                     while (keys.hasNext()) {
                         val k = keys.next()
+                        val pLabel = getTranslation("day_close_summary.${k}_payment", language)
                         sb.append(getTranslation("day_close_summary.payment_line", language)
-                            .replace("{type}", k) // Shift level labels not remapped per spec
+                            .replace("{type}", pLabel)
                             .replace("{amount}", formatCurrency(pBreakdown.optInt(k), currencyCode))).append("\n")
                     }
                 }
@@ -296,6 +297,25 @@ class TelegramFormatter {
                 "total_revenue" to "Total Revenue: {totalRevenue}",
                 "cash_payment" to "Cash",
                 "qr_payment" to "QR Code"
+            ),
+            "day_close_summary" to mapOf(
+                "title" to "📅 Day Close Summary",
+                "business_date" to "Business Date: {date}",
+                "shift_section_header" to "Shift {shiftNumber}",
+                "total_orders" to "Orders: {count}",
+                "total_items_sold" to "Items: {totalItemsSold}",
+                "total_revenue" to "Revenue: {amount}",
+                "voided_orders" to "Voided Orders: {count}",
+                "voided_items" to "Voided Items: {count}",
+                "voided_amount" to "Voided Amount: {amount}",
+                "payment_breakdown" to "Payment Breakdown:",
+                "payment_line" to "- {type}: {amount}",
+                "combined_section_header" to "Daily Totals",
+                "grand_total_items_sold" to "Total Items: {grandTotalItemsSold}",
+                "grand_total_revenue" to "Total Revenue: {amount}",
+                "cash_payment" to "Cash",
+                "qr_payment" to "QR Code",
+                "conclusion" to "End of Report"
             )
         )
 
@@ -336,6 +356,25 @@ class TelegramFormatter {
                 "total_revenue" to "ចំណូលសរុប៖ {totalRevenue}",
                 "cash_payment" to "សាច់ប្រាក់",
                 "qr_payment" to "QR កូដ"
+            ),
+            "day_close_summary" to mapOf(
+                "title" to "📅 របាយការណ៍បិទថ្ងៃ",
+                "business_date" to "កាលបរិច្ឆេទអាជីវកម្ម៖ {date}",
+                "shift_section_header" to "វេនទី {shiftNumber}",
+                "total_orders" to "ចំនួនការកម្មង់៖ {count}",
+                "total_items_sold" to "ចំនួនទំនិញ៖ {totalItemsSold}",
+                "total_revenue" to "ចំណូលសរុប៖ {amount}",
+                "voided_orders" to "ការកម្មង់បោះបង់៖ {count}",
+                "voided_items" to "ទំនិញបោះបង់៖ {count}",
+                "voided_amount" to "ចំណូលបោះបង់៖ {amount}",
+                "payment_breakdown" to "ចំណូលតាមប្រភេទការទូទាត់៖",
+                "payment_line" to "- {type}: {amount}",
+                "combined_section_header" to "សរុបប្រចាំថ្ងៃ",
+                "grand_total_items_sold" to "ចំនួនទំនិញសរុប៖ {grandTotalItemsSold}",
+                "grand_total_revenue" to "ចំណូលសរុប៖ {amount}",
+                "cash_payment" to "សាច់ប្រាក់",
+                "qr_payment" to "QR កូដ",
+                "conclusion" to "បញ្ចប់របាយការណ៍"
             )
         )
     }

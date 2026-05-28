@@ -1972,6 +1972,11 @@ class NativeConfigStore(private val context: Context) {
     }
     persistDayCloses(updatedDayCloses)
 
+    // Enqueue background report action
+    enqueuePendingAction(ACTION_TYPE_DAY_CLOSE_REPORT, JSONObject()
+      .put("date", date)
+      .put("timestamp", now))
+
     // Cloud Sync trigger for all closed shifts for this date
     for (i in 0 until updated.length()) {
       val shift = updated.optJSONObject(i) ?: continue
@@ -1980,6 +1985,7 @@ class NativeConfigStore(private val context: Context) {
       }
     }
     triggerCloudSyncWorker()
+    triggerBackgroundWorker()
 
     return JSONObject().put("success", true).put("businessDate", date)
   }

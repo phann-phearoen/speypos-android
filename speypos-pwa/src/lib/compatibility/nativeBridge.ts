@@ -16,7 +16,9 @@ export interface SpeyposNativeBridge {
   getShifts(): string;
   openShift(staffId: string): string;
   closeShift(shiftId: string): string;
-  closeDay(): string;
+  getPreviousDayStatus(): string;
+  getCloseDayPreview(date?: string): string;
+  closeDay(date?: string): string;
   getMenuCategories(): string;
   getMenuItems(): string;
   createMenuItem(payloadJson: string): string;

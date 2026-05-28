@@ -185,6 +185,18 @@ export interface DayCloseShiftSummary {
   orders: Order[];
 }
 
+export interface PreviousDayStatus {
+  hasPreviousDay: boolean;
+  previousDate: string | null;
+  isClosed: boolean;
+  closedAt: number | null;
+  todayClosedShiftsCount: number;
+  todayStoreDate: string;
+  isTodayClosed: boolean;
+  enforcementStartDate: string | null;
+  isEnforced: boolean;
+}
+
 export interface Payment {
   payment_type: 'cash';
   amount: number;

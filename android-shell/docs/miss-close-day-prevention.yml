@@ -1,0 +1,245 @@
+feature_name: Missed Close Day Prevention
+
+purpose: >
+  Prevent opening a new shift when the previous business day was not formally closed,
+  while preserving a safe rollout for existing installations and providing clear UI
+  guidance for staff to complete the missing day close.
+
+status: implemented_in_web_and_backend
+
+scope:
+  frontend_clients:
+    - PWA
+    - Android parity target
+  backend:
+    - speypos-local shift APIs
+    - SQLite persistence
+
+business_rules:
+  - id: previous_day_gate
+    rule: >
+      A new shift must not be opened if the most recent previous business date exists,
+      is inside the enforcement window, and has no DayClose record.
+  - id: rollout_cutover
+    rule: >
+      Historical business dates must not suddenly block operators after deployment.
+      Enforcement starts one day after the first day-close migration was applied.
+  - id: previous_business_day_definition
+    rule: >
+      The previous business day is the maximum Shift.date strictly earlier than the
+      current store date, not simply calendar date minus one.
+  - id: close_day_targeting
+    rule: >
+      Close-day preview and close-day confirmation must support an explicit target
+      business date so staff can close a missed previous day from the current day.
+  - id: attention_state
+    rule: >
+      When two or more shifts are already closed for the current business day, the
+      Close Day action should become visually prominent and show a reminder message.
+  - id: post_shift_nudge
+    rule: >
+      Immediately after a shift is closed, the Close Day action should animate briefly
+      to guide the operator toward completing the business day.
+
+backend:
+  storage:
+    database: SQLite
+    migration_files:
+      - name: initial_day_close_schema
+        responsibility: Create DayClose table and backfill days that had no open shift.
+      - name: followup_day_close_backfill
+        responsibility: Backfill existing installs that already passed migration 003.
+    tables:
+      DayClose:
+        primary_key: date
+        columns:
+          - name: date
+            type: TEXT
+            format: YYYY-MM-DD
+          - name: closed_at
+            type: INTEGER
+            description: Unix epoch in milliseconds when the day was formally closed.
+
+  repository_contracts:
+    functions:
+      - name: insertDayClose
+        signature: insertDayClose(date)
+        behavior: Upsert a DayClose row for the target business date.
+      - name: getDayClose
+        signature: getDayClose(date)
+        behavior: Return the DayClose row for a business date or null.
+      - name: getLastBusinessDateBefore
+        signature: getLastBusinessDateBefore(date)
+        behavior: Return MAX(Shift.date) where Shift.date < input date.
+      - name: getClosedShiftsCountForDate
+        signature: getClosedShiftsCountForDate(date)
+        behavior: Count shifts for that business date whose status is closed.
+      - name: getDayCloseEnforcementStartDate
+        signature: getDayCloseEnforcementStartDate()
+        behavior: >
+          Read the first applied day-close migration timestamp from _migrations,
+          add a 24 hour grace period, then convert that UTC instant into store date.
+
+  time_handling:
+    requirements:
+      - All business-date decisions must use the store timezone, not device local time.
+      - Current business date comes from getNowInStoreTime().todayStoreDate.
+      - Migration cutover conversion uses getStoreDateFromUtcDate(...).
+
+  service_layer:
+    requirements:
+      - A shared day-close context helper must accept an optional targetDate.
+      - If targetDate is absent, default to the current store date.
+      - getReviewDataForDayClose(targetDate?) must return shifts and orders for that date.
+      - generateDayCloseReport(targetDate?) must generate the report for that date.
+      - Day-close preview and close-day execution must operate on the same resolved date.
+
+  controller_behavior:
+    open_shift:
+      endpoint: POST /api/shifts/open
+      flow:
+        - Auto-close orphan open shifts from earlier dates before evaluating today.
+        - Reject if an open shift already exists for the current business date.
+        - Resolve previousDate via getLastBusinessDateBefore(todayStoreDate).
+        - Resolve enforcementStartDate via getDayCloseEnforcementStartDate().
+        - Enforce only when previousDate exists and previousDate >= enforcementStartDate.
+        - If enforced and getDayClose(previousDate) is null, reject with HTTP 409.
+      error_response:
+        status_code: 409
+        body:
+          error: PREVIOUS_DAY_NOT_CLOSED
+          message: The previous business day was not closed.
+          previousDate: YYYY-MM-DD
+
+    previous_day_status:
+      endpoint: GET /api/shift/day-status/previous
+      purpose: >
+        Provide the client everything needed to render the warning banner, block the
+        Open Shift action, and style the Close Day action.
+      success_response:
+        hasPreviousDay: boolean
+        previousDate: YYYY-MM-DD | null
+        isClosed: boolean
+        closedAt: number | null
+        todayClosedShiftsCount: number
+        enforcementStartDate: YYYY-MM-DD | null
+        isEnforced: boolean
+      behavior_notes:
+        - If no previous business day exists, hasPreviousDay is false.
+        - Pre-cutover previous dates are treated as effectively closed for UI purposes.
+
+    day_close_preview:
+      endpoint: GET /api/shift/close-day
+      query_params:
+        date:
+          required: false
+          format: YYYY-MM-DD
+          behavior: >
+            When present, preview that business date instead of the current store date.
+      success_response:
+        businessDate: YYYY-MM-DD
+        shifts: array
+
+    day_close_confirm:
+      endpoint: POST /api/shift/close-day
+      query_params:
+        date:
+          required: false
+          format: YYYY-MM-DD
+          behavior: >
+            When present, close that business date instead of the current store date.
+      success_behavior:
+        - Generate day-close report for the resolved business date.
+        - Insert DayClose for the same resolved business date.
+      error_behavior:
+        - Return HTTP 409 with error DAY_NOT_READY when the day is not ready to close.
+
+frontend:
+  api_client:
+    methods:
+      - name: getPreviousDayStatus
+        request: GET /api/shift/day-status/previous
+      - name: getCloseDayPreview
+        request: GET /api/shift/close-day?date=YYYY-MM-DD (optional query param)
+      - name: closeDay
+        request: POST /api/shift/close-day?date=YYYY-MM-DD (optional query param)
+
+  types:
+    client_model: PreviousDayStatus
+    minimum_fields_required_for_android:
+      - hasPreviousDay
+      - previousDate
+      - isClosed
+      - closedAt
+      - todayClosedShiftsCount
+      - enforcementStartDate
+      - isEnforced
+
+  shift_page_behavior:
+    screen: POS shift landing screen
+    initialization:
+      - Detect active shift first.
+      - If no active shift exists, fetch staff list and previous-day status.
+    derived_state:
+      previousDayBlocked: hasPreviousDay && !isClosed
+      closeDayAttention: todayClosedShiftsCount >= 2
+      closeDayAnimate: closeDayAttention && animateCloseDay
+    ui_requirements:
+      - Show a destructive warning panel when previousDayBlocked is true.
+      - Warning panel text must include the missed previousDate.
+      - Open Shift button must be disabled while previousDayBlocked is true.
+      - Open Shift button should show a locked visual state while blocked.
+      - Close Day button in the warning panel must open the modal for previousDate.
+      - Main Close Day button must still support closing the current business date.
+      - When closeDayAttention is true, style the Close Day button as high priority.
+      - When closeDayAttention is true, show reminder text prompting the user to close the day.
+      - After a shift is closed and navigation returns to the shift page, animate the Close Day button for a short duration.
+      - The close-day action area must remain visible even when Open Shift shows an error state.
+
+  day_close_modal:
+    requirements:
+      - Accept targetDate as an optional prop.
+      - On open, call getCloseDayPreview(targetDate).
+      - On confirm, call closeDay(targetDate).
+      - If targetDate is absent, default to current-day behavior.
+      - Display preview.businessDate so the operator can verify the intended day.
+
+  localization:
+    required_keys:
+      - shift.previousDayNotClosedTitle
+      - shift.previousDayNotClosed
+      - shift.closeDayReminder
+    english_reference:
+      shift.previousDayNotClosedTitle: Previous Day Not Closed
+      shift.previousDayNotClosed: Business day {{date}} was not closed. Please close the day before opening a new shift.
+      shift.closeDayReminder: Please close the day if no shifts remain for the day.
+
+android_parity_notes:
+  architecture_guidance:
+    - Keep the server as the source of truth for enforcement decisions.
+    - Do not duplicate cutoff-date logic exclusively on the client.
+    - Model previous-day status as a dedicated response DTO rather than inferring from shift lists.
+    - Treat close-day preview and close-day confirmation as date-addressable operations.
+  ui_guidance:
+    - The Shift screen must support an inline warning card above the primary shift controls.
+    - The main content region should be scrollable internally if the warning card causes vertical overflow.
+    - Root app-level scroll locking should remain unchanged if Android uses a fixed-height shell layout.
+    - Keep the Close Day shortcut accessible from both the warning card and the standard action area.
+  state_management:
+    - Persist the selected target date for the close-day modal or bottom sheet.
+    - Clear the target date when the user invokes the normal current-day Close Day action.
+    - Refresh previous-day status after a successful close-day action.
+  failure_handling:
+    - Show the server message for PREVIOUS_DAY_NOT_CLOSED when shift opening is rejected.
+    - Show a non-destructive loading/error state if previous-day status fetch fails.
+    - Never silently fall back to current day when the operator intended to close a previous day.
+
+acceptance_criteria:
+  - Opening a shift is blocked when yesterday's business date is unclosed and inside the enforcement window.
+  - Opening a shift remains allowed for historical dates before the enforcement cutover.
+  - The warning UI shows the missed business date and directs the user to Close Day.
+  - The Close Day preview for a missed day shows that missed day's businessDate, shifts, and orders.
+  - Confirming Close Day for a missed day records DayClose for the missed date, not for today.
+  - The main Close Day action becomes visually prominent once two or more shifts are closed for today.
+  - A reminder message is visible when the Close Day action is in that prominent state.
+  - Immediately after shift close, the Close Day action animates to draw attention.

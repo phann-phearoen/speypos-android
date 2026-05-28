@@ -13,7 +13,8 @@ import { DayClosePreviewModal } from '@/components/pos/DayClosePreviewModal';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { triggerImpact, triggerNotification, triggerSuccess } from '@/lib/feedback';
-import type { Staff, Shift } from '@/types/pos';
+import { formatDateString } from '@/lib/datetime';
+import type { Staff, Shift, PreviousDayStatus } from '@/types/pos';
 
 const shiftCompatibility = getShiftCompatibilityProvider();
 const staffCompatibility = getStaffCompatibilityProvider();
@@ -35,9 +36,13 @@ export default function ShiftPage() {
   // Orphaned shifts state
   const [orphanedShifts, setOrphanedShifts] = useState<Shift[]>([]);
   const [showOrphanedWarning, setShowOrphanedWarning] = useState(false);
-  
+
+  // Previous day status state
+  const [prevDayStatus, setPrevDayStatus] = useState<PreviousDayStatus | null>(null);
+
   // Day close modal state
   const [showDayCloseModal, setShowDayCloseModal] = useState(false);
+  const [dayCloseTargetDate, setDayCloseTargetDate] = useState<string | undefined>(undefined);
 
   // Check for active shift and pending actions on mount
   useEffect(() => {
@@ -61,13 +66,21 @@ export default function ShiftPage() {
         navigate(`/pos/order?shiftId=${activeShiftInfo.shift.id}`, { replace: true });
       } else {
         setCheckingActiveShift(false);
-        // Load staff for new shift creation
+        // Load staff and previous day status
         loadStaff();
+        loadPreviousDayStatus();
       }
     };
     
     checkActiveShift();
   }, [detectActiveShift, openShift, navigate, refreshPendingActions]);
+
+  const loadPreviousDayStatus = async () => {
+    const result = await shiftCompatibility.getPreviousDayStatus();
+    if (!result.error && result.data) {
+      setPrevDayStatus(result.data);
+    }
+  };
 
   const loadStaff = async () => {
     setLoading(true);
@@ -125,10 +138,24 @@ export default function ShiftPage() {
 
   const handleDayCloseSuccess = () => {
     setShowDayCloseModal(false);
+    setDayCloseTargetDate(undefined);
     toast({
       title: t('shift.dayClose.success'),
       description: t('shift.dayClose.successDesc'),
     });
+    // Refresh status
+    loadPreviousDayStatus();
+  };
+
+  const openDayCloseModal = (date?: string) => {
+    const target = date || prevDayStatus?.todayStoreDate;
+    if (!target) {
+        console.error('Cannot open day close modal: No target date available');
+        return;
+    }
+    triggerNotification('warning');
+    setDayCloseTargetDate(target);
+    setShowDayCloseModal(true);
   };
 
   const activeStaff = staffList.filter((s) => s.status === 'active');
@@ -144,8 +171,9 @@ export default function ShiftPage() {
         isConnected={!isBackendUnavailable}
       />
 
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-lg">
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col items-center justify-center min-h-full p-4 sm:p-8">
+          <div className="w-full max-w-lg">
           {/* Store Brand & Welcome */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
@@ -191,6 +219,36 @@ export default function ShiftPage() {
                 >
                   <X className="w-4 h-4" />
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Previous Day Not Closed Warning Banner */}
+          {prevDayStatus && prevDayStatus.hasPreviousDay && !prevDayStatus.isClosed && (
+            <div className="bg-destructive/10 border border-destructive rounded-lg p-4 mb-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6 text-destructive" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-destructive">
+                    {t('shift.previousDayNotClosedTitle')}
+                  </h3>
+                  <p className="text-sm text-foreground mt-1 leading-relaxed">
+                    {t('shift.previousDayNotClosed').replace('{{date}}', formatDateString(prevDayStatus.previousDate || ''))}
+                  </p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="mt-3 font-semibold shadow-sm"
+                    onClick={() => {
+                      openDayCloseModal(prevDayStatus.previousDate || undefined);
+                    }}
+                  >
+                    <CalendarCheck className="w-4 h-4 mr-2" />
+                    {t('shift.closeDay')} {prevDayStatus.previousDate}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -314,13 +372,13 @@ export default function ShiftPage() {
                       triggerSuccess();
                       handleOpenShift();
                     }}
-                    disabled={!selectedStaff || openingShift}
+                    disabled={!selectedStaff || openingShift || (prevDayStatus?.isEnforced && !prevDayStatus?.isClosed)}
                     className={`
                       w-full pos-btn gap-3 py-4 rounded-xl font-semibold text-lg
                       ${
-                        selectedStaff
+                        selectedStaff && !(prevDayStatus?.isEnforced && !prevDayStatus?.isClosed)
                           ? 'bg-success text-success-foreground shadow-md'
-                          : 'bg-muted text-muted-foreground cursor-not-allowed'
+                          : 'bg-muted text-muted-foreground cursor-not-allowed opacity-80'
                       }
                     `}
                   >
@@ -328,6 +386,11 @@ export default function ShiftPage() {
                       <>
                         <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                         {t('shift.openingShift')}
+                      </>
+                    ) : (prevDayStatus?.isEnforced && !prevDayStatus?.isClosed) ? (
+                      <>
+                        <AlertCircle className="w-5 h-5" />
+                        {t('shift.openShift')} (Locked)
                       </>
                     ) : (
                       <>
@@ -340,16 +403,20 @@ export default function ShiftPage() {
                   {/* Close Day Button */}
                   <div className="mt-6 pt-6 border-t border-border">
                     <Button
-                      variant="outline"
-                      className="w-full gap-2"
+                      variant={prevDayStatus?.todayClosedShiftsCount && prevDayStatus.todayClosedShiftsCount >= 2 && !prevDayStatus.isTodayClosed ? "default" : "outline"}
+                      className={`w-full gap-2 ${prevDayStatus?.todayClosedShiftsCount && prevDayStatus.todayClosedShiftsCount >= 2 && !prevDayStatus.isTodayClosed ? "bg-warning text-warning-foreground hover:bg-warning/90 animate-pulse" : ""}`}
                       onClick={() => {
-                        triggerNotification('warning');
-                        setShowDayCloseModal(true);
+                        openDayCloseModal();
                       }}
                     >
                       <CalendarCheck className="w-4 h-4" />
                       {t('shift.closeDay')}
                     </Button>
+                    {prevDayStatus?.todayClosedShiftsCount && prevDayStatus.todayClosedShiftsCount >= 2 && !prevDayStatus.isTodayClosed && (
+                      <p className="text-xs text-warning font-medium text-center mt-2 italic">
+                        {t('shift.closeDayReminder')}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground text-center mt-2">
                       {t('shift.closeDayHint')}
                     </p>
@@ -360,13 +427,20 @@ export default function ShiftPage() {
           )}
 
           {/* Day Close Preview Modal */}
-          <DayClosePreviewModal
-            open={showDayCloseModal}
-            onClose={() => setShowDayCloseModal(false)}
-            onSuccess={handleDayCloseSuccess}
-          />
+          {dayCloseTargetDate && (
+            <DayClosePreviewModal
+              open={showDayCloseModal}
+              targetDate={dayCloseTargetDate}
+              onClose={() => {
+                  setShowDayCloseModal(false);
+                  setDayCloseTargetDate(undefined);
+              }}
+              onSuccess={handleDayCloseSuccess}
+            />
+          )}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

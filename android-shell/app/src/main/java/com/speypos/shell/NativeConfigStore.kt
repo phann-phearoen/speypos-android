@@ -10,7 +10,10 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import org.json.JSONArray
@@ -44,6 +47,8 @@ class NativeConfigStore(private val context: Context) {
     private const val PREF_NATIVE_PENDING_ACTIONS_JSON = "native.pending.actions.json"
     private const val PREF_NATIVE_SYNC_QUEUE_JSON = "native.sync.queue.json"
     private const val PREF_NATIVE_UPDATE_SOURCE_JSON = "native.update.source.json"
+    private const val PREF_NATIVE_DAY_CLOSES_JSON = "native.day.closes.json"
+    private const val PREF_NATIVE_MIGRATIONS_JSON = "native.migrations.json"
     private const val DEFAULT_MAX_PRINT_ATTEMPTS = 5
 
     private val MENU_RELATED_KEYS = listOf(
@@ -105,7 +110,9 @@ class NativeConfigStore(private val context: Context) {
       PREF_NATIVE_MENU_ITEMS_JSON,
       PREF_NATIVE_PRINT_QUEUE_JSON,
       PREF_NATIVE_PENDING_ACTIONS_JSON,
-      PREF_NATIVE_SYNC_QUEUE_JSON
+      PREF_NATIVE_SYNC_QUEUE_JSON,
+      PREF_NATIVE_DAY_CLOSES_JSON,
+      PREF_NATIVE_MIGRATIONS_JSON
     )
 
     operationalKeys.forEach { key ->
@@ -127,6 +134,19 @@ class NativeConfigStore(private val context: Context) {
 
     if (!preferences.contains(PREF_NATIVE_SETTINGS_JSON)) {
       editor.putString(PREF_NATIVE_SETTINGS_JSON, buildDefaultSettings().toString())
+      changed = true
+    }
+
+    // Seed migration for enforcement start date if none exists
+    val migrations = JSONArray(preferences.getString(PREF_NATIVE_MIGRATIONS_JSON, "[]"))
+    if (migrations.length() == 0) {
+      val now = System.currentTimeMillis()
+      migrations.put(JSONObject()
+        .put("version", 1)
+        .put("name", "initial_day_close_schema")
+        .put("applied_at", now)
+      )
+      editor.putString(PREF_NATIVE_MIGRATIONS_JSON, migrations.toString())
       changed = true
     }
 
@@ -1725,11 +1745,56 @@ class NativeConfigStore(private val context: Context) {
   }
 
   fun openShift(staffId: String): JSONObject {
-    val shifts = readShifts()
-    for (index in 0 until shifts.length()) {
-      val shift = shifts.optJSONObject(index) ?: continue
+    val storeTime = getNowInStoreTime()
+    val today = storeTime.todayStoreDate
+
+    val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
+    val updated = JSONArray()
+    var openShiftFound = false
+
+    // Auto-close orphan shifts from earlier dates
+    for (i in 0 until shifts.length()) {
+      val shift = shifts.optJSONObject(i) ?: continue
       if (shift.optString("status") == "open") {
-        throw IllegalStateException("An open shift already exists.")
+        if (shift.optString("date") < today) {
+          val closed = JSONObject(shift.toString())
+            .put("status", "closed")
+            .put("ended_at", System.currentTimeMillis())
+          updated.put(closed)
+        } else {
+          openShiftFound = true
+          updated.put(shift)
+        }
+      } else {
+        updated.put(shift)
+      }
+    }
+
+    if (openShiftFound) {
+      throw IllegalStateException("An open shift already exists for today.")
+    }
+
+    // Enforcement logic
+    val previousDate = getLastBusinessDateBefore(today)
+    if (previousDate != null) {
+      val enforcementStartDate = getDayCloseEnforcementStartDate()
+      if (previousDate >= enforcementStartDate) {
+        val dayCloses = readDayCloses()
+        var closed = false
+        for (i in 0 until dayCloses.length()) {
+          val dc = dayCloses.optJSONObject(i) ?: continue
+          if (dc.optString("date") == previousDate) {
+            closed = true
+            break
+          }
+        }
+        if (!closed) {
+          val error = JSONObject()
+            .put("error", "PREVIOUS_DAY_NOT_CLOSED")
+            .put("message", "The previous business day $previousDate was not closed.")
+            .put("previousDate", previousDate)
+          throw IllegalStateException(error.toString())
+        }
       }
     }
 
@@ -1737,20 +1802,50 @@ class NativeConfigStore(private val context: Context) {
     val newShift = JSONObject()
       .put("id", "shift-native-$now")
       .put("staff_id", staffId)
-      .put("date", LocalDate.now().toString())
+      .put("date", today)
       .put("started_at", now)
       .put("ended_at", JSONObject.NULL)
       .put("status", "open")
       .put("next_order_sequence", 1)
 
-    val updated = JSONArray()
-    updated.put(newShift)
-    for (index in 0 until shifts.length()) {
-      updated.put(shifts.get(index))
+    val finalShifts = JSONArray()
+    finalShifts.put(newShift)
+    for (i in 0 until updated.length()) {
+      finalShifts.put(updated.get(i))
     }
 
-    persistShifts(updated)
+    persistShifts(finalShifts)
     return newShift
+  }
+
+  private fun getLastBusinessDateBefore(date: String): String? {
+    val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
+    var maxDate: String? = null
+    for (i in 0 until shifts.length()) {
+      val shift = shifts.optJSONObject(i) ?: continue
+      val shiftDate = shift.optString("date")
+      if (shiftDate < date) {
+        if (maxDate == null || shiftDate > maxDate) {
+          maxDate = shiftDate
+        }
+      }
+    }
+    return maxDate
+  }
+
+  private fun getDayCloseEnforcementStartDate(): String {
+    val migrations = readMigrations()
+    if (migrations.length() > 0) {
+      val firstMigration = migrations.optJSONObject(0)
+      val appliedAt = firstMigration.optLong("applied_at")
+      // 24 hour grace period
+      val enforcementInstant = Instant.ofEpochMilli(appliedAt).plusSeconds(24 * 3600)
+      val store = readStore()
+      val timezone = store.optString("timezone", "Asia/Phnom_Penh")
+      val zoneId = ZoneId.of(timezone)
+      return ZonedDateTime.ofInstant(enforcementInstant, zoneId).toLocalDate().toString()
+    }
+    return "0000-00-00" // Fallback
   }
 
   fun closeShift(shiftId: String): JSONObject {
@@ -1791,25 +1886,20 @@ class NativeConfigStore(private val context: Context) {
     return updatedShift
   }
 
-  fun getCloseDayPreview(): JSONObject {
-    val shifts = readShifts()
+  fun getCloseDayPreview(date: String): JSONObject {
+    val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
     val orders = readArray(PREF_NATIVE_ORDERS_JSON)
     val staff = readStaff()
     val catalogItems = readArray(PREF_NATIVE_MENU_ITEMS_JSON)
-    val today = LocalDate.now().toString()
 
     val relevantShifts = JSONArray()
     for (i in 0 until shifts.length()) {
       val shift = shifts.optJSONObject(i) ?: continue
-      val shiftDate = shift.optString("date")
-      val status = shift.optString("status")
-
-      // Include shifts from today OR any currently open shifts
-      if (shiftDate == today || status == "open") {
+      if (shift.optString("date") == date) {
         val shiftId = shift.optString("id")
         val staffId = shift.optString("staff_id")
-
-        // Find staff for this shift
+        
+        // Find staff
         var shiftStaff: JSONObject? = null
         for (j in 0 until staff.length()) {
           val s = staff.optJSONObject(j) ?: continue
@@ -1837,51 +1927,116 @@ class NativeConfigStore(private val context: Context) {
     }
 
     return JSONObject()
-      .put("businessDate", today)
+      .put("businessDate", date)
       .put("shifts", relevantShifts)
   }
 
-  fun closeDay(): JSONObject {
-    val shifts = readShifts()
+  fun closeDay(date: String): JSONObject {
+    val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
     val now = System.currentTimeMillis()
-    var closedCount = 0
     val updated = JSONArray()
 
     for (index in 0 until shifts.length()) {
       val shift = shifts.optJSONObject(index) ?: continue
-      if (shift.optString("status") == "open") {
+      if (shift.optString("date") == date && shift.optString("status") == "open") {
         val closed = JSONObject(shift.toString())
           .put("status", "closed")
           .put("ended_at", now)
         updated.put(closed)
-        closedCount += 1
       } else {
         updated.put(shift)
       }
     }
 
     persistShifts(updated)
-
-    // Cloud Sync trigger for all closed shifts
-    for (i in 0 until updated.length()) {
-        val s = updated.optJSONObject(i) ?: continue
-        if (s.optString("status") == "closed" && s.optLong("ended_at") == now) {
-            enqueueSyncJob(SYNC_JOB_TYPE_FLUSH, s.optString("id"))
-        }
+    
+    // Insert DayClose record
+    val dayCloses = readDayCloses()
+    val newDayClose = JSONObject()
+      .put("date", date)
+      .put("closed_at", now)
+    
+    val updatedDayCloses = JSONArray()
+    var exists = false
+    for (i in 0 until dayCloses.length()) {
+      val dc = dayCloses.optJSONObject(i) ?: continue
+      if (dc.optString("date") == date) {
+        updatedDayCloses.put(newDayClose)
+        exists = true
+      } else {
+        updatedDayCloses.put(dc)
+      }
     }
+    if (!exists) {
+      updatedDayCloses.put(newDayClose)
+    }
+    persistDayCloses(updatedDayCloses)
 
-    // Enqueue background report action
-    val dateStr = LocalDate.now().toString()
-    enqueuePendingAction(ACTION_TYPE_DAY_CLOSE_REPORT, JSONObject()
-      .put("action", "day_close")
-      .put("date", dateStr)
-      .put("closed_count", closedCount)
-      .put("timestamp", now))
+    // Cloud Sync trigger for all closed shifts for this date
+    for (i in 0 until updated.length()) {
+      val shift = updated.optJSONObject(i) ?: continue
+      if (shift.optString("date") == date && shift.optString("status") == "closed") {
+         enqueueSyncJob(shift.optString("id"), SYNC_JOB_TYPE_FLUSH)
+      }
+    }
+    triggerCloudSyncWorker()
 
+    return JSONObject().put("success", true).put("businessDate", date)
+  }
+
+  fun getPreviousDayStatus(): JSONObject {
+    val storeTime = getNowInStoreTime()
+    val today = storeTime.todayStoreDate
+    
+    val previousDate = getLastBusinessDateBefore(today)
+    val enforcementStartDate = getDayCloseEnforcementStartDate()
+    
+    val dayCloses = readDayCloses()
+    var isTodayClosed = false
+    for (i in 0 until dayCloses.length()) {
+      val dc = dayCloses.optJSONObject(i) ?: continue
+      if (dc.optString("date") == today) {
+        isTodayClosed = true
+        break
+      }
+    }
+    
+    var isClosed = true
+    var closedAt: Long? = null
+    
+    if (previousDate != null) {
+      isClosed = false
+      for (i in 0 until dayCloses.length()) {
+        val dc = dayCloses.optJSONObject(i) ?: continue
+        if (dc.optString("date") == previousDate) {
+          isClosed = true
+          closedAt = dc.optLong("closed_at")
+          break
+        }
+      }
+    }
+    
+    val shifts = readArray(PREF_NATIVE_SHIFTS_JSON)
+    var todayClosedShiftsCount = 0
+    for (i in 0 until shifts.length()) {
+      val shift = shifts.optJSONObject(i) ?: continue
+      if (shift.optString("date") == today && shift.optString("status") == "closed") {
+        todayClosedShiftsCount++
+      }
+    }
+    
+    val isEnforced = previousDate != null && previousDate >= enforcementStartDate
+    
     return JSONObject()
-      .put("message", "Closed $closedCount shift(s).")
-      .put("closed_count", closedCount)
-      .put("date", dateStr)
+      .put("hasPreviousDay", previousDate != null)
+      .put("previousDate", previousDate ?: JSONObject.NULL)
+      .put("isClosed", isClosed)
+      .put("closedAt", closedAt ?: JSONObject.NULL)
+      .put("todayClosedShiftsCount", todayClosedShiftsCount)
+      .put("todayStoreDate", today)
+      .put("isTodayClosed", isTodayClosed)
+      .put("enforcementStartDate", enforcementStartDate)
+      .put("isEnforced", isEnforced)
   }
 
   fun readCloudSyncSettings(): JSONObject {
@@ -2320,6 +2475,22 @@ class NativeConfigStore(private val context: Context) {
     return merged
   }
 
+  fun getNowInStoreTime(): StoreTime {
+    val store = readStore()
+    val timezone = store.optString("timezone", "Asia/Phnom_Penh")
+    val zoneId = ZoneId.of(timezone)
+    val now = ZonedDateTime.now(zoneId)
+    return StoreTime(
+      todayStoreDate = now.toLocalDate().toString(),
+      now = now
+    )
+  }
+
+  data class StoreTime(
+    val todayStoreDate: String,
+    val now: ZonedDateTime
+  )
+
   private fun buildDefaultUpdateSource(): JSONObject {
     return JSONObject()
       .put("base_url", "")
@@ -2400,7 +2571,7 @@ class NativeConfigStore(private val context: Context) {
   }
 
   private fun readArray(key: String): JSONArray {
-    val raw = getPreferences().getString(key, null) ?: return JSONArray()
+    val raw = getPreferences().getString(key, "[]")
     return try {
       JSONArray(raw)
     } catch (_: Exception) {
@@ -2418,6 +2589,18 @@ class NativeConfigStore(private val context: Context) {
 
   private fun persistStaff(staff: JSONArray) {
     persistArray(PREF_NATIVE_STAFF_JSON, staff)
+  }
+
+  private fun readDayCloses(): JSONArray {
+    return readArray(PREF_NATIVE_DAY_CLOSES_JSON)
+  }
+
+  private fun persistDayCloses(data: JSONArray) {
+    persistArray(PREF_NATIVE_DAY_CLOSES_JSON, data)
+  }
+
+  private fun readMigrations(): JSONArray {
+    return readArray(PREF_NATIVE_MIGRATIONS_JSON)
   }
 
   private fun persistOrders(orders: JSONArray) {

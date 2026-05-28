@@ -457,10 +457,25 @@ class SpeyposNativeBridge(
   }
 
   @JavascriptInterface
-  fun getCloseDayPreview(): String {
+  fun getPreviousDayStatus(): String {
     return try {
       JSONObject()
-        .put("data", configStore.getCloseDayPreview())
+        .put("data", configStore.getPreviousDayStatus())
+        .put("error", JSONObject.NULL)
+        .toString()
+    } catch (error: Exception) {
+      JSONObject()
+        .put("data", JSONObject.NULL)
+        .put("error", error.message ?: "Failed to get previous day status")
+        .toString()
+    }
+  }
+
+  @JavascriptInterface
+  fun getCloseDayPreview(date: String): String {
+    return try {
+      JSONObject()
+        .put("data", configStore.getCloseDayPreview(date))
         .put("error", JSONObject.NULL)
         .toString()
     } catch (error: Exception) {
@@ -472,10 +487,10 @@ class SpeyposNativeBridge(
   }
 
   @JavascriptInterface
-  fun closeDay(): String {
+  fun closeDay(date: String): String {
     return try {
       JSONObject()
-        .put("data", configStore.closeDay())
+        .put("data", configStore.closeDay(date))
         .put("error", JSONObject.NULL)
         .toString()
     } catch (error: Exception) {

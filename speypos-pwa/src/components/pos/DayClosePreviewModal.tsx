@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 
 interface DayClosePreviewModalProps {
   open: boolean;
+  targetDate: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -27,6 +28,7 @@ const shiftCompatibility = getShiftCompatibilityProvider();
 
 export function DayClosePreviewModal({
   open,
+  targetDate,
   onClose,
   onSuccess,
 }: DayClosePreviewModalProps) {
@@ -50,7 +52,7 @@ export function DayClosePreviewModal({
   const loadPreview = async () => {
     setLoading(true);
     setError(null);
-    const { data, error: apiError } = await shiftCompatibility.getCloseDayPreview();
+    const { data, error: apiError } = await shiftCompatibility.getCloseDayPreview(targetDate);
     if (apiError) {
       setError(apiError);
       setPreview(null);
@@ -66,7 +68,7 @@ export function DayClosePreviewModal({
   const handleConfirm = async () => {
     setClosing(true);
     setError(null);
-    const { error: apiError } = await shiftCompatibility.closeDay();
+    const { error: apiError } = await shiftCompatibility.closeDay(targetDate);
     if (apiError) {
       setError(apiError);
       setClosing(false);

@@ -20,6 +20,11 @@ android {
     targetSdk = 34
     versionCode = 4
     versionName = "0.1.4"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  testOptions {
+    unitTests.isReturnDefaultValues = true
   }
 
   buildTypes {
@@ -54,6 +59,10 @@ dependencies {
   implementation("com.google.android.material:material:1.12.0")
   implementation("androidx.work:work-runtime-ktx:2.9.1")
   implementation("androidx.webkit:webkit:1.11.0")
+  testImplementation("junit:junit:4.13.2")
+  testImplementation("org.json:json:20240303")
+  testImplementation("org.mockito:mockito-core:5.11.0")
+  testImplementation("org.mockito:mockito-inline:5.2.0")
 }
 
 val buildFrontendForAndroid = tasks.register<Exec>("buildFrontendForAndroid") {

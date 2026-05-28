@@ -220,10 +220,14 @@ export const shiftApi = {
       method: 'PATCH',
       body: JSON.stringify({ status: 'closed' }),
     }),
+  // Get previous day status for enforcement
+  getPreviousDayStatus: () => request<any>('/shift/day-status/previous'),
   // Day close preview - get summary before closing
-  getCloseDayPreview: () => request<any>('/shift/close-day'),
+  getCloseDayPreview: (date: string) =>
+    request<any>(`/shift/close-day?date=${date}`),
   // Close all shifts for the business day
-  closeDay: () => request<{ message: string }>('/shift/close-day', { method: 'POST' }),
+  closeDay: (date: string) =>
+    request<{ message: string }>(`/shift/close-day?date=${date}`, { method: 'POST' }),
 };
 
 // Orders

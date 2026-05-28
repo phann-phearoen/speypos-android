@@ -350,6 +350,17 @@ class MainActivity : AppCompatActivity() {
       path == "/api/cloud-sync-settings" -> nativeBridge.getCloudSyncSettings()
       path == "/api/staff" -> nativeBridge.getStaff()
       path == "/api/shifts" -> nativeBridge.getShifts()
+      path == "/api/shift/day-status/previous" -> nativeBridge.getPreviousDayStatus()
+      path == "/api/shift/close-day" -> {
+        val date = request.url.getQueryParameter("date")
+        if (date == null) {
+          "{\"data\":null,\"error\":\"Missing mandatory date parameter\"}"
+        } else if (request.method == "POST") {
+          nativeBridge.closeDay(date)
+        } else {
+          nativeBridge.getCloseDayPreview(date)
+        }
+      }
       path == "/api/orders" -> {
         val limit = request.url.getQueryParameter("limit")?.toIntOrNull() ?: -1
         nativeBridge.getOrders(limit)

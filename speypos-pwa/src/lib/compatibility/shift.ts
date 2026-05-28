@@ -9,10 +9,11 @@ export interface ShiftCompatibilityProvider {
   getShift(shiftId: string): Promise<CompatibilityResult<Shift>>;
   getOpenShifts(): Promise<CompatibilityResult<Shift[]>>;
   getShiftsByDate(date: string): Promise<CompatibilityResult<Shift[]>>;
-  getCloseDayPreview(): Promise<CompatibilityResult<DayClosePreviewResponse>>;
+  getPreviousDayStatus(): Promise<CompatibilityResult<any>>;
+  getCloseDayPreview(date: string): Promise<CompatibilityResult<DayClosePreviewResponse>>;
   openShift(staffId: string): Promise<CompatibilityResult<Shift>>;
   closeShift(shiftId: string): Promise<CompatibilityResult<Shift>>;
-  closeDay(): Promise<CompatibilityResult<{ message: string; closed_count?: number }>>;
+  closeDay(date: string): Promise<CompatibilityResult<{ message: string; closed_count?: number }>>;
 }
 
 const httpShiftCompatibilityProvider: ShiftCompatibilityProvider = {
@@ -20,10 +21,11 @@ const httpShiftCompatibilityProvider: ShiftCompatibilityProvider = {
   getShift: (shiftId: string) => shiftApi.getShift(shiftId),
   getOpenShifts: () => shiftApi.getOpenShifts(),
   getShiftsByDate: (date: string) => shiftApi.getShiftsByDate(date),
-  getCloseDayPreview: () => shiftApi.getCloseDayPreview(),
+  getPreviousDayStatus: () => shiftApi.getPreviousDayStatus(),
+  getCloseDayPreview: (date: string) => shiftApi.getCloseDayPreview(date),
   openShift: (staffId: string) => shiftApi.openShift(staffId),
   closeShift: (shiftId: string) => shiftApi.closeShift(shiftId),
-  closeDay: () => shiftApi.closeDay(),
+  closeDay: (date: string) => shiftApi.closeDay(date),
 };
 
 const nativeShiftCompatibilityProvider: ShiftCompatibilityProvider = {
@@ -61,13 +63,21 @@ const nativeShiftCompatibilityProvider: ShiftCompatibilityProvider = {
 
     return httpShiftCompatibilityProvider.getShiftsByDate(date);
   },
-  getCloseDayPreview: async () => {
-    const result = callNativeBridge<DayClosePreviewResponse>('getCloseDayPreview');
+  getPreviousDayStatus: async () => {
+    const result = callNativeBridge<any>('getPreviousDayStatus');
     if (!result.error) {
       return result;
     }
 
-    return httpShiftCompatibilityProvider.getCloseDayPreview();
+    return httpShiftCompatibilityProvider.getPreviousDayStatus();
+  },
+  getCloseDayPreview: async (date: string) => {
+    const result = callNativeBridge<DayClosePreviewResponse>('getCloseDayPreview', date);
+    if (!result.error) {
+      return result;
+    }
+
+    return httpShiftCompatibilityProvider.getCloseDayPreview(date);
   },
   openShift: async (staffId: string) => {
     const result = callNativeBridge<Shift>('openShift', staffId);
@@ -85,13 +95,13 @@ const nativeShiftCompatibilityProvider: ShiftCompatibilityProvider = {
 
     return httpShiftCompatibilityProvider.closeShift(shiftId);
   },
-  closeDay: async () => {
-    const result = callNativeBridge<{ message: string; closed_count?: number }>('closeDay');
+  closeDay: async (date: string) => {
+    const result = callNativeBridge<{ message: string; closed_count?: number }>('closeDay', date);
     if (!result.error) {
       return result;
     }
 
-    return httpShiftCompatibilityProvider.closeDay();
+    return httpShiftCompatibilityProvider.closeDay(date);
   },
 };
 
